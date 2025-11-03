@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { NetworkSidebar } from "@/components/network/NetworkSidebar";
 import { NetworkTable } from "@/components/network/NetworkTable";
@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { NetworkProvider } from "@/contexts/NetworkContext";
+import { NetworkProvider, useNetwork } from "@/contexts/NetworkContext";
 import { ProjectScenarioNav } from "@/components/ProjectScenarioNav";
 import { useProjects, Project } from "@/contexts/ProjectContext";
 import { useScenarios } from "@/contexts/ScenarioContext";

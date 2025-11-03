@@ -7,7 +7,7 @@ import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import Profile from "./pages/Profile";
 import GFA from "./pages/GFA";
-import DemandForecasting from "./pages/DemandForecasting";
+import DemandFromSale from "./pages/DemandFromSale";
 import Scenario2 from "./pages/Scenario2";
 import Scenario3 from "./pages/Scenario3";
 import NetworkAnalysis from "./pages/NetworkAnalysis";
@@ -33,7 +33,7 @@ const App = () => (
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/profile" element={<Profile />} />
               <Route path="/gfa" element={<GFA />} />
-              <Route path="/demand-forecasting" element={<DemandForecasting />} />
+              <Route path="/demand-forecasting" element={<DemandFromSale />} />
               <Route path="/scenario2" element={<Scenario2 />} />
               <Route path="/scenario3" element={<Scenario3 />} />
               <Route path="/network" element={<NetworkAnalysis />} />

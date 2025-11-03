@@ -55,7 +55,7 @@ import { toast } from 'sonner';
 const navigationItems = [
   { title: 'Dashboard', url: '/dashboard', icon: Home, type: null },
   { title: 'GFA', url: '/gfa', icon: MapPin, type: 'gfa' as const },
-  { title: 'Demand Forecasting', url: '/demand-forecasting', icon: TrendingUp, type: 'forecasting' as const },
+  { title: 'Demand from the Sale', url: '/demand-forecasting', icon: TrendingUp, type: 'forecasting' as const },
   { title: 'Network Analysis', url: '/network', icon: Network, type: 'network' as const },
   { title: 'Inventory Optimization', url: '/inventory-optimization-v2', icon: Gauge, type: 'inventory' as const },
 ];

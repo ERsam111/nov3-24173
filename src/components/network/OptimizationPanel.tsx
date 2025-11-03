@@ -4,6 +4,8 @@ import { Settings, Play, CheckCircle } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useNetwork } from "@/contexts/NetworkContext";
+import { useScenarios } from "@/contexts/ScenarioContext";
+import { addScenarioResult } from "@/utils/resultVersioning";
 import { toast } from "sonner";
 import { useState } from "react";
 import { DataIntegrityChecker } from "./DataIntegrityChecker";
@@ -11,6 +13,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 export function OptimizationPanel() {
   const { data, setResults } = useNetwork();
+  const { currentScenario, updateScenario } = useScenarios();
   const [isOptimizing, setIsOptimizing] = useState(false);
   const [objective, setObjective] = useState<'min_cost' | 'min_time' | 'max_service'>('min_cost');
   const [solver, setSolver] = useState('opensource');
@@ -215,10 +218,18 @@ export function OptimizationPanel() {
   };
 
   const handleRunOptimization = async () => {
+    if (!currentScenario) {
+      toast.error("Please select a scenario first");
+      return;
+    }
+
     setIsOptimizing(true);
     
     try {
       toast.info("Running optimization...");
+      
+      // Update scenario status
+      await updateScenario(currentScenario.id, { status: 'running' });
       
       const transformedData = transformData();
       
@@ -243,6 +254,7 @@ export function OptimizationPanel() {
       if (error) {
         console.error("Edge function error:", error);
         toast.error(`Optimization failed: ${error.message}`);
+        await updateScenario(currentScenario.id, { status: 'failed' });
         return;
       }
       
@@ -250,21 +262,33 @@ export function OptimizationPanel() {
       
       if (result?.error) {
         toast.error(result.error);
+        await updateScenario(currentScenario.id, { status: 'failed' });
         return;
       }
-      
-      setResults({
+
+      const resultsData = {
         productFlow: result?.productFlow || [],
         production: result?.production || [],
         vehicleFlow: result?.vehicleFlow || [],
         costSummary: result?.costSummary || []
-      });
+      };
       
-      toast.success(`Optimization completed! Total cost: $${result?.costSummary?.[0]?.amount?.toFixed(2) || '0'}`);
+      setResults(resultsData);
+
+      // Add versioned result
+      const resultNumber = addScenarioResult(currentScenario.id, resultsData);
+
+      // Update scenario status
+      await updateScenario(currentScenario.id, { status: 'completed' });
+      
+      toast.success(`Result ${resultNumber} saved! Total cost: $${result?.costSummary?.[0]?.amount?.toFixed(2) || '0'}`);
       
     } catch (error: any) {
       console.error("Optimization error:", error);
       toast.error("Failed to run optimization: " + error.message);
+      if (currentScenario) {
+        await updateScenario(currentScenario.id, { status: 'failed' });
+      }
     } finally {
       setIsOptimizing(false);
     }

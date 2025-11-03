@@ -144,8 +144,9 @@ const GFA = () => {
     setWarnings(result.warnings);
     setCostBreakdown(result.costBreakdown);
 
-    // Save output data
-    await saveScenarioOutput(currentScenario.id, {
+    // Add versioned result
+    const { addScenarioResult } = await import("@/utils/resultVersioning");
+    const resultNumber = addScenarioResult(currentScenario.id, {
       dcs: result.dcs,
       feasible: result.feasible,
       warnings: result.warnings,
@@ -157,13 +158,13 @@ const GFA = () => {
 
     if (result.feasible) {
       if (settings.mode === 'cost' && result.costBreakdown) {
-        toast.success(`Optimization complete! Optimal solution: ${result.costBreakdown.numSites} sites with total cost $${result.costBreakdown.totalCost.toLocaleString()}`);
+        toast.success(`Result ${resultNumber} saved! Optimal solution: ${result.costBreakdown.numSites} sites with total cost $${result.costBreakdown.totalCost.toLocaleString()}`);
       } else {
-        toast.success("Optimization complete! All constraints satisfied.");
+        toast.success(`Result ${resultNumber} saved successfully!`);
       }
       setActiveTab("results");
     } else {
-      toast.warning("Optimization complete with constraint violations. See warnings in Results tab.");
+      toast.warning(`Result ${resultNumber} saved with warnings. See Results tab.`);
       setActiveTab("results");
     }
   };

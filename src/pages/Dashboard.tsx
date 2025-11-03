@@ -17,8 +17,8 @@ const tools = [
   },
   {
     icon: TrendingUp,
-    title: 'Demand Forecasting',
-    description: 'Predictive Analytics',
+    title: 'Demand from the Sale',
+    description: 'Demand and Promotion',
     route: '/demand-forecasting',
     type: 'forecasting' as const,
   },

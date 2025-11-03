@@ -28,8 +28,8 @@ const Index = () => {
     },
     {
       icon: TrendingUp,
-      title: "Demand Forecasting",
-      description: "Predictive Analytics",
+      title: "Demand from the Sale",
+      description: "Demand and Promotion",
       details: "Leverage statistical models and machine learning for accurate demand planning",
       route: "/demand-forecasting",
       color: "secondary",
