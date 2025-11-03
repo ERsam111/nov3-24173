@@ -35,7 +35,7 @@ export const ProjectScenarioNav = ({
   onProjectChange,
   onScenarioChange,
 }: ProjectScenarioNavProps) => {
-  const { projects } = useProjects();
+  const { projects, createProject } = useProjects();
   const { scenarios, loadScenariosByProject, createScenario, setCurrentScenario, currentScenario } = useScenarios();
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [createProjectOpen, setCreateProjectOpen] = useState(false);
@@ -45,6 +45,40 @@ export const ProjectScenarioNav = ({
 
   // Filter projects by module type
   const moduleProjects = projects.filter(p => p.tool_type === moduleType);
+
+  // Auto-create default project and scenario on mount
+  useEffect(() => {
+    const initializeDefaults = async () => {
+      // If no projects exist for this module, create "Project 1"
+      if (moduleProjects.length === 0 && !currentProjectId) {
+        const newProject = await createProject({
+          name: "Project 1",
+          description: "Default project",
+          tool_type: moduleType,
+          input_data: null,
+          results_data: null,
+          size_mb: 0
+        });
+
+        if (newProject) {
+          setSelectedProject(newProject);
+          loadScenariosByProject(newProject.id);
+          onProjectChange?.(newProject);
+        }
+        return;
+      }
+
+      // If we have projects but none selected, select the first one
+      if (moduleProjects.length > 0 && !currentProjectId && !selectedProject) {
+        const firstProject = moduleProjects[0];
+        setSelectedProject(firstProject);
+        loadScenariosByProject(firstProject.id);
+        onProjectChange?.(firstProject);
+      }
+    };
+
+    initializeDefaults();
+  }, [moduleProjects.length, currentProjectId]);
 
   // Load project and scenarios on mount or when IDs change
   useEffect(() => {
@@ -57,6 +91,34 @@ export const ProjectScenarioNav = ({
     }
   }, [currentProjectId, projects]);
 
+  // Auto-create default scenario if none exists
+  useEffect(() => {
+    const initializeScenario = async () => {
+      if (selectedProject && scenarios.length === 0 && !currentScenario) {
+        // Create "Scenario 1" automatically
+        const newScenario = await createScenario({
+          name: "Scenario 1",
+          description: "Default scenario",
+          project_id: selectedProject.id,
+          module_type: moduleType,
+          status: 'pending',
+        });
+
+        if (newScenario) {
+          setCurrentScenario(newScenario);
+          onScenarioChange?.(newScenario);
+        }
+      } else if (scenarios.length > 0 && !currentScenario) {
+        // If scenarios exist but none selected, select the first one
+        const firstScenario = scenarios[0];
+        setCurrentScenario(firstScenario);
+        onScenarioChange?.(firstScenario);
+      }
+    };
+
+    initializeScenario();
+  }, [selectedProject, scenarios.length, currentScenario]);
+
   useEffect(() => {
     if (currentScenarioId && scenarios.length > 0) {
       const scenario = scenarios.find(s => s.id === currentScenarioId);
@@ -66,9 +128,9 @@ export const ProjectScenarioNav = ({
     }
   }, [currentScenarioId, scenarios]);
 
-  const handleProjectSelect = (project: Project) => {
+  const handleProjectSelect = async (project: Project) => {
     setSelectedProject(project);
-    loadScenariosByProject(project.id);
+    await loadScenariosByProject(project.id);
     onProjectChange?.(project);
     setCurrentScenario(null);
   };
