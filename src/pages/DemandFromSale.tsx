@@ -61,8 +61,14 @@ const DemandFromSale = () => {
     
     const inputData = await loadScenarioInput(currentScenario.id);
     if (inputData) {
-      setRawHistoricalData(inputData.historicalData || []);
-      setHistoricalData(inputData.historicalData || []);
+      // Convert date strings back to Date objects
+      const convertedHistoricalData = (inputData.historicalData || []).map((d: any) => ({
+        ...d,
+        date: new Date(d.date)
+      }));
+      
+      setRawHistoricalData(convertedHistoricalData);
+      setHistoricalData(convertedHistoricalData);
       setSelectedProduct(inputData.selectedProduct || "");
       setGranularity(inputData.granularity || "monthly");
       setForecastPeriods(inputData.forecastPeriods || 6);
@@ -77,7 +83,17 @@ const DemandFromSale = () => {
     if (results.length > 0) {
       const latest = results[results.length - 1];
       setSelectedResultNumber(latest.resultNumber);
-      setForecastResults(latest.data.results || []);
+      
+      // Convert date strings back to Date objects in forecast results
+      const convertedResults = (latest.data.results || []).map((r: any) => ({
+        ...r,
+        predictions: r.predictions.map((p: any) => ({
+          ...p,
+          date: new Date(p.date)
+        }))
+      }));
+      
+      setForecastResults(convertedResults);
     }
   };
 
@@ -223,7 +239,17 @@ const DemandFromSale = () => {
     const result = resultHistory.find(r => r.resultNumber === resultNumber);
     if (result) {
       setSelectedResultNumber(resultNumber);
-      setForecastResults(result.data.results || []);
+      
+      // Convert date strings back to Date objects in forecast results
+      const convertedResults = (result.data.results || []).map((r: any) => ({
+        ...r,
+        predictions: r.predictions.map((p: any) => ({
+          ...p,
+          date: new Date(p.date)
+        }))
+      }));
+      
+      setForecastResults(convertedResults);
     }
   };
 
