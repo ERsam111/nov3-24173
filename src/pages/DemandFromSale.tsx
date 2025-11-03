@@ -15,11 +15,10 @@ import { OutlierDetection } from "@/components/forecasting/OutlierDetection";
 import { HistoricalDataPoint, ForecastResult } from "@/types/forecasting";
 import { generateForecasts } from "@/utils/forecastingModels";
 import { useToast } from "@/hooks/use-toast";
+import { saveScenario1Results, getScenario1Results } from "@/utils/scenarioStorage";
 import { ProjectScenarioNav } from "@/components/ProjectScenarioNav";
 import { useProjects, Project } from "@/contexts/ProjectContext";
 import { useScenarios } from "@/contexts/ScenarioContext";
-import { addScenarioResult, getScenarioResults } from "@/utils/resultVersioning";
-import { Badge } from "@/components/ui/badge";
 
 const DemandFromSale = () => {
   const navigate = useNavigate();
@@ -45,14 +44,23 @@ const DemandFromSale = () => {
     random_forest: { nTrees: 10, windowSize: 5 },
     arima: { p: 2, d: 1, q: 2 }
   });
-  const [resultHistory, setResultHistory] = useState<any[]>([]);
-  const [selectedResultNumber, setSelectedResultNumber] = useState<number | null>(null);
+
+  // Load saved data on mount
+  useEffect(() => {
+    const saved = getScenario1Results();
+    if (saved) {
+      setForecastResults(saved.results);
+      setSelectedProduct(saved.product);
+      if (saved.granularity === "daily" || saved.granularity === "weekly" || saved.granularity === "monthly") {
+        setGranularity(saved.granularity);
+      }
+    }
+  }, []);
 
   // Load scenario data
   useEffect(() => {
     if (currentScenario) {
       loadScenarioData();
-      loadResultHistory();
     }
   }, [currentScenario]);
 
@@ -61,7 +69,6 @@ const DemandFromSale = () => {
     
     const inputData = await loadScenarioInput(currentScenario.id);
     if (inputData) {
-      // Convert date strings back to Date objects
       const convertedHistoricalData = (inputData.historicalData || []).map((d: any) => ({
         ...d,
         date: new Date(d.date)
@@ -73,27 +80,6 @@ const DemandFromSale = () => {
       setGranularity(inputData.granularity || "monthly");
       setForecastPeriods(inputData.forecastPeriods || 6);
       setSelectedModels(inputData.selectedModels || ["moving_average", "exponential_smoothing"]);
-    }
-  };
-
-  const loadResultHistory = () => {
-    if (!currentScenario) return;
-    const results = getScenarioResults(currentScenario.id);
-    setResultHistory(results);
-    if (results.length > 0) {
-      const latest = results[results.length - 1];
-      setSelectedResultNumber(latest.resultNumber);
-      
-      // Convert date strings back to Date objects in forecast results
-      const convertedResults = (latest.data.results || []).map((r: any) => ({
-        ...r,
-        predictions: r.predictions.map((p: any) => ({
-          ...p,
-          date: new Date(p.date)
-        }))
-      }));
-      
-      setForecastResults(convertedResults);
     }
   };
 
@@ -213,44 +199,18 @@ const DemandFromSale = () => {
     const results = generateForecasts(filteredData, forecastPeriods, selectedModels, modelParams, granularity);
     setForecastResults(results);
 
-    // Add versioned result
-    const resultNumber = addScenarioResult(currentScenario.id, {
-      results,
-      product: selectedProduct,
-      granularity,
-      timestamp: new Date().toISOString()
-    });
+    // Save results for Scenario 2
+    saveScenario1Results(results, selectedProduct, granularity);
 
     // Update scenario status
     await updateScenario(currentScenario.id, { status: 'completed' });
 
-    // Reload history
-    loadResultHistory();
-
     toast({
       title: "Forecast generated",
-      description: `Result ${resultNumber} saved successfully`
+      description: `Generated forecasts using ${selectedModels.length} model(s). Results saved for Scenario 2.`
     });
 
     setActiveTab("results");
-  };
-
-  const handleResultSelect = (resultNumber: number) => {
-    const result = resultHistory.find(r => r.resultNumber === resultNumber);
-    if (result) {
-      setSelectedResultNumber(resultNumber);
-      
-      // Convert date strings back to Date objects in forecast results
-      const convertedResults = (result.data.results || []).map((r: any) => ({
-        ...r,
-        predictions: r.predictions.map((p: any) => ({
-          ...p,
-          date: new Date(p.date)
-        }))
-      }));
-      
-      setForecastResults(convertedResults);
-    }
   };
 
   const uniqueProducts = Array.from(new Set(historicalData.map(d => d.product)));
@@ -263,6 +223,10 @@ const DemandFromSale = () => {
           <Button variant="ghost" size="sm" onClick={() => navigate("/dashboard")} className="gap-2">
             <ArrowLeft className="h-4 w-4" />
             Back
+          </Button>
+          <Button onClick={() => navigate("/scenario2")} size="sm" className="gap-2">
+            Next: Scenario 2
+            <ArrowLeft className="h-4 w-4 rotate-180" />
           </Button>
         </div>
       </div>
@@ -294,7 +258,7 @@ const DemandFromSale = () => {
             </TabsTrigger>
             <TabsTrigger value="results" disabled={forecastResults.length === 0}>
               <TrendingUp className="h-4 w-4 mr-2" />
-              Demand and Promotion
+              Demand from Sales
             </TabsTrigger>
           </TabsList>
 
@@ -360,7 +324,7 @@ const DemandFromSale = () => {
                       </div>
 
                       <div className="space-y-2">
-                        <Label>Forecast Horizon</Label>
+                        <Label>Forecast Horizon ({granularity === "daily" ? "Days" : granularity === "weekly" ? "Weeks" : "Months"})</Label>
                         <Input
                           type="number"
                           min="1"
@@ -369,11 +333,6 @@ const DemandFromSale = () => {
                         />
                       </div>
                     </div>
-
-                    <Button onClick={runForecasting} className="w-full gap-2">
-                      <Play className="h-4 w-4" />
-                      Run Forecast
-                    </Button>
                   </CardContent>
                 </Card>
 
@@ -391,6 +350,11 @@ const DemandFromSale = () => {
                     />
                   </CardContent>
                 </Card>
+
+                <Button onClick={runForecasting} className="w-full gap-2" size="lg">
+                  <Play className="h-4 w-4" />
+                  Run Forecast
+                </Button>
               </>
             )}
           </TabsContent>
@@ -419,28 +383,6 @@ const DemandFromSale = () => {
           </TabsContent>
 
           <TabsContent value="results" className="space-y-6">
-            {resultHistory.length > 0 && (
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <CardTitle>Result History</CardTitle>
-                    <div className="flex gap-2">
-                      {resultHistory.map((result) => (
-                        <Badge
-                          key={result.resultNumber}
-                          variant={selectedResultNumber === result.resultNumber ? "default" : "outline"}
-                          className="cursor-pointer"
-                          onClick={() => handleResultSelect(result.resultNumber)}
-                        >
-                          Result {result.resultNumber}
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-                </CardHeader>
-              </Card>
-            )}
-
             {forecastResults.length > 0 && (
               <ForecastResults
                 results={forecastResults}
