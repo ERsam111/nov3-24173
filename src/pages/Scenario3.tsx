@@ -11,6 +11,9 @@ import { useToast } from "@/hooks/use-toast";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import { ProjectScenarioNav } from "@/components/ProjectScenarioNav";
 import { useScenarios } from "@/contexts/ScenarioContext";
+import { ResultsNavigator } from "@/components/ResultsNavigator";
+import { listResults, getResult } from "@/lib/data/results";
+import { toast as sonnerToast } from "sonner";
 
 const Scenario3 = () => {
   const { toast } = useToast();
@@ -18,7 +21,9 @@ const Scenario3 = () => {
   const [scenario1Data, setScenario1Data] = useState<any>(null);
   const [scenario2Data, setScenario2Data] = useState<any>(null);
   const [activeTab, setActiveTab] = useState("inputs");
-  const { currentScenario, loadScenarioInput, loadScenarioOutput, saveScenarioOutput, saveScenarioInput } = useScenarios();
+  const [resultHistory, setResultHistory] = useState<any[]>([]);
+  const [selectedResultId, setSelectedResultId] = useState<string | null>(null);
+  const { currentScenario, loadScenarioInput, saveScenarioOutput, saveScenarioInput } = useScenarios();
 
   useEffect(() => {
     const loadData = async () => {
@@ -29,15 +34,38 @@ const Scenario3 = () => {
           setScenario2Data(inputData.scenario2Data || null);
         }
 
-        const outputData = await loadScenarioOutput(currentScenario.id);
-        if (outputData) {
-          setResults(outputData.results || []);
+        // Load result history
+        const allResults = await listResults(currentScenario.id);
+        setResultHistory(allResults);
+        
+        // Load latest result
+        if (allResults.length > 0) {
+          const latest = allResults[0];
+          setSelectedResultId(latest.id);
+          setResults(latest.output_data?.results || []);
         }
       }
     };
 
     loadData();
   }, [currentScenario]);
+
+  const handleResultSelect = async (result: any) => {
+    setSelectedResultId(result.id);
+    const fullResult = await getResult(result.id);
+    if (fullResult) {
+      setResults(fullResult.output_data?.results || []);
+      setActiveTab("results");
+      sonnerToast.success(`Loaded ${result.name}`);
+    }
+  };
+
+  const refreshResultHistory = async () => {
+    if (currentScenario) {
+      const allResults = await listResults(currentScenario.id);
+      setResultHistory(allResults);
+    }
+  };
 
   const handleDataSubmit = async (inputs: Scenario3Input[]) => {
     if (!scenario2Data || scenario2Data.length === 0) {
@@ -88,12 +116,19 @@ const Scenario3 = () => {
       setResults(processedResults);
       
       if (currentScenario) {
-        await saveScenarioOutput(currentScenario.id, { results: processedResults });
+        const metrics = {
+          totalForecasts: processedResults.length,
+          avgElasticity: enrichedInputs.reduce((sum, i) => sum + i.elasticity, 0) / enrichedInputs.length,
+          productsAdjusted: new Set(enrichedInputs.map(i => i.product_name)).size
+        };
+        
+        await saveScenarioOutput(currentScenario.id, { results: processedResults }, metrics);
         await saveScenarioInput(currentScenario.id, { scenario1Data, scenario2Data });
+        await refreshResultHistory();
       }
       
       toast({
-        title: "Scenario 3 calculated",
+        title: "Scenario 3 calculated and saved",
         description: `Processed ${processedResults.length} forecasts with elasticity adjustments`
       });
 
@@ -204,6 +239,16 @@ const Scenario3 = () => {
               </TabsContent>
 
               <TabsContent value="results" className="space-y-6">
+                {currentScenario && (
+                  <ResultsNavigator
+                    results={resultHistory}
+                    selectedResultId={selectedResultId}
+                    onResultSelect={handleResultSelect}
+                    onResultRenamed={refreshResultHistory}
+                    scenarioId={currentScenario.id}
+                  />
+                )}
+                
                 {results.length > 0 ? (
                   <Scenario3Results 
                     results={results} 

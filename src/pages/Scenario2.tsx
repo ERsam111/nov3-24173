@@ -13,6 +13,9 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { ProjectScenarioNav } from "@/components/ProjectScenarioNav";
 import { useScenarios } from "@/contexts/ScenarioContext";
 import { useNavigate } from "react-router-dom";
+import { ResultsNavigator } from "@/components/ResultsNavigator";
+import { listResults, getResult } from "@/lib/data/results";
+import { toast as sonnerToast } from "sonner";
 
 const Scenario2 = () => {
   const navigate = useNavigate();
@@ -22,7 +25,9 @@ const Scenario2 = () => {
   const [scenario1Data, setScenario1Data] = useState<any>(null);
   const [selectedModelId, setSelectedModelId] = useState<string>("");
   const [activeTab, setActiveTab] = useState("adjustments");
-  const { currentScenario, loadScenarioInput, loadScenarioOutput, saveScenarioOutput, saveScenarioInput } = useScenarios();
+  const [resultHistory, setResultHistory] = useState<any[]>([]);
+  const [selectedResultId, setSelectedResultId] = useState<string | null>(null);
+  const { currentScenario, loadScenarioInput, saveScenarioOutput, saveScenarioInput } = useScenarios();
 
   useEffect(() => {
     const loadData = async () => {
@@ -33,15 +38,38 @@ const Scenario2 = () => {
           setSelectedModelId(inputData.selectedModelId || "");
         }
 
-        const outputData = await loadScenarioOutput(currentScenario.id);
-        if (outputData) {
-          setEnrichedAdjustments(outputData.enrichedAdjustments || []);
+        // Load result history
+        const allResults = await listResults(currentScenario.id);
+        setResultHistory(allResults);
+        
+        // Load latest result
+        if (allResults.length > 0) {
+          const latest = allResults[0];
+          setSelectedResultId(latest.id);
+          setEnrichedAdjustments(latest.output_data?.enrichedAdjustments || []);
         }
       }
     };
 
     loadData();
   }, [currentScenario]);
+
+  const handleResultSelect = async (result: any) => {
+    setSelectedResultId(result.id);
+    const fullResult = await getResult(result.id);
+    if (fullResult) {
+      setEnrichedAdjustments(fullResult.output_data?.enrichedAdjustments || []);
+      setActiveTab("results");
+      sonnerToast.success(`Loaded ${result.name}`);
+    }
+  };
+
+  const refreshResultHistory = async () => {
+    if (currentScenario) {
+      const allResults = await listResults(currentScenario.id);
+      setResultHistory(allResults);
+    }
+  };
 
   const calculateAdjustedForecast = (baseline: number, type: "units" | "percentage", value: number): number => {
     if (type === "units") {
@@ -94,12 +122,19 @@ const Scenario2 = () => {
     setEnrichedAdjustments(enriched);
     
     if (currentScenario) {
-      await saveScenarioOutput(currentScenario.id, { enrichedAdjustments: enriched });
+      const metrics = {
+        totalAdjustments: data.length,
+        totalPeriods: enriched.length,
+        avgAdjustment: enriched.reduce((sum, e) => sum + (e.adjustedForecast - e.baselineForecast), 0) / enriched.length
+      };
+      
+      await saveScenarioOutput(currentScenario.id, { enrichedAdjustments: enriched }, metrics);
       await saveScenarioInput(currentScenario.id, { scenario1Data, selectedModelId });
+      await refreshResultHistory();
     }
     
     toast({
-      title: "Adjustments applied",
+      title: "Adjustments applied and saved",
       description: `Applied ${data.length} adjustments across ${enriched.length} periods.`
     });
 
@@ -240,6 +275,16 @@ const Scenario2 = () => {
               </TabsContent>
 
               <TabsContent value="results" className="space-y-6">
+                {currentScenario && (
+                  <ResultsNavigator
+                    results={resultHistory}
+                    selectedResultId={selectedResultId}
+                    onResultSelect={handleResultSelect}
+                    onResultRenamed={refreshResultHistory}
+                    scenarioId={currentScenario.id}
+                  />
+                )}
+                
                 {enrichedAdjustments.length > 0 ? (
                   <Scenario2Results adjustments={enrichedAdjustments} scenario1Data={scenario1Data} />
                 ) : (
