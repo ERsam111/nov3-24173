@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Upload, Download, List, Package, DollarSign, ChevronRight, X } from "lucide-react";
+import { Upload, Download, List, Package, DollarSign, ChevronRight, X, ChevronDown } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Customer, Product, OptimizationSettings } from "@/types/gfa";
 import { ExcelUpload } from "./ExcelUpload";
 import { CustomerDataForm } from "./CustomerDataForm";
@@ -34,6 +35,9 @@ export function GFACompactInputPanel({
 }: GFACompactInputPanelProps) {
   const [activeSection, setActiveSection] = useState<PanelSection>(null);
   const [showUploadDialog, setShowUploadDialog] = useState(false);
+  const [isCustomersOpen, setIsCustomersOpen] = useState(true);
+  const [isProductsOpen, setIsProductsOpen] = useState(true);
+  const [isCostsOpen, setIsCostsOpen] = useState(true);
 
   const handleAddCustomer = (customer: Customer) => {
     onCustomersChange([...customers, customer]);
@@ -127,54 +131,75 @@ export function GFACompactInputPanel({
         </div>
 
         {/* Customer Data Table */}
-        <Card className="p-3">
-          <div className="flex items-center gap-2 mb-2">
-            <List className="h-4 w-4" />
-            <h3 className="font-semibold text-sm">Customer Data</h3>
-            <span className="text-xs text-muted-foreground ml-auto">{customers.length}</span>
-          </div>
-          <CustomerDataForm
-            customers={customers}
-            onAddCustomer={handleAddCustomer}
-            onRemoveCustomer={handleRemoveCustomer}
-          />
-        </Card>
+        <Collapsible open={isCustomersOpen} onOpenChange={setIsCustomersOpen}>
+          <Card className="p-3">
+            <CollapsibleTrigger className="w-full">
+              <div className="flex items-center gap-2 mb-2">
+                <List className="h-4 w-4" />
+                <h3 className="font-semibold text-sm">Customer Data</h3>
+                <span className="text-xs text-muted-foreground ml-auto">{customers.length}</span>
+                {isCustomersOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+              </div>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <CustomerDataForm
+                customers={customers}
+                onAddCustomer={handleAddCustomer}
+                onRemoveCustomer={handleRemoveCustomer}
+              />
+            </CollapsibleContent>
+          </Card>
+        </Collapsible>
 
         {/* Product Management Table */}
         {products.length > 0 && (
-          <Card className="p-3">
-            <div className="flex items-center gap-2 mb-2">
-              <Package className="h-4 w-4" />
-              <h3 className="font-semibold text-sm">Products</h3>
-              <span className="text-xs text-muted-foreground ml-auto">{products.length}</span>
-            </div>
-            <ProductManager
-              products={products}
-              onProductUpdate={handleProductUpdate}
-              targetUnit={settings.capacityUnit}
-            />
-          </Card>
+          <Collapsible open={isProductsOpen} onOpenChange={setIsProductsOpen}>
+            <Card className="p-3">
+              <CollapsibleTrigger className="w-full">
+                <div className="flex items-center gap-2 mb-2">
+                  <Package className="h-4 w-4" />
+                  <h3 className="font-semibold text-sm">Products</h3>
+                  <span className="text-xs text-muted-foreground ml-auto">{products.length}</span>
+                  {isProductsOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                </div>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <ProductManager
+                  products={products}
+                  onProductUpdate={handleProductUpdate}
+                  targetUnit={settings.capacityUnit}
+                />
+              </CollapsibleContent>
+            </Card>
+          </Collapsible>
         )}
 
         {/* Cost Parameters Table */}
-        <Card className="p-3">
-          <div className="flex items-center gap-2 mb-2">
-            <DollarSign className="h-4 w-4" />
-            <h3 className="font-semibold text-sm">Cost Parameters</h3>
-          </div>
-          <CostParameters
-            transportationCostPerMilePerUnit={settings.transportationCostPerMilePerUnit}
-            facilityCost={settings.facilityCost}
-            distanceUnit={settings.distanceUnit}
-            costUnit={settings.costUnit}
-            onTransportCostChange={(value) =>
-              onSettingsChange({ ...settings, transportationCostPerMilePerUnit: value })
-            }
-            onFacilityCostChange={(value) => onSettingsChange({ ...settings, facilityCost: value })}
-            onDistanceUnitChange={(value) => onSettingsChange({ ...settings, distanceUnit: value })}
-            onCostUnitChange={(value) => onSettingsChange({ ...settings, costUnit: value })}
-          />
-        </Card>
+        <Collapsible open={isCostsOpen} onOpenChange={setIsCostsOpen}>
+          <Card className="p-3">
+            <CollapsibleTrigger className="w-full">
+              <div className="flex items-center gap-2 mb-2">
+                <DollarSign className="h-4 w-4" />
+                <h3 className="font-semibold text-sm">Cost Parameters</h3>
+                {isCostsOpen ? <ChevronDown className="h-4 w-4 ml-auto" /> : <ChevronRight className="h-4 w-4 ml-auto" />}
+              </div>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <CostParameters
+                transportationCostPerMilePerUnit={settings.transportationCostPerMilePerUnit}
+                facilityCost={settings.facilityCost}
+                distanceUnit={settings.distanceUnit}
+                costUnit={settings.costUnit}
+                onTransportCostChange={(value) =>
+                  onSettingsChange({ ...settings, transportationCostPerMilePerUnit: value })
+                }
+                onFacilityCostChange={(value) => onSettingsChange({ ...settings, facilityCost: value })}
+                onDistanceUnitChange={(value) => onSettingsChange({ ...settings, distanceUnit: value })}
+                onCostUnitChange={(value) => onSettingsChange({ ...settings, costUnit: value })}
+              />
+            </CollapsibleContent>
+          </Card>
+        </Collapsible>
       </div>
 
       {/* Right Corner - Map */}
