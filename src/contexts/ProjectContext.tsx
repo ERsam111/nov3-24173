@@ -1,13 +1,16 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './AuthContext';
+import { ensureProject as ensureProjectData, renameProject as renameProjectData, listProjects } from '@/lib/data/projects';
+
+export type ToolType = 'gfa' | 'forecasting' | 'network' | 'inventory' | 'transportation';
 
 export interface Project {
   id: string;
   user_id: string;
   name: string;
   description: string | null;
-  tool_type: 'gfa' | 'forecasting' | 'network' | 'inventory' | 'transportation';
+  tool_type: ToolType;
   input_data: any;
   results_data: any;
   size_mb: number;
@@ -18,8 +21,10 @@ export interface Project {
 interface ProjectContextType {
   projects: Project[];
   loading: boolean;
+  ensureProject: (toolType: ToolType) => Promise<Project | null>;
   createProject: (project: Omit<Project, 'id' | 'user_id' | 'created_at' | 'updated_at'>) => Promise<Project | null>;
   updateProject: (id: string, updates: Partial<Project>) => Promise<void>;
+  renameProject: (id: string, newName: string) => Promise<{ success: boolean; error?: string }>;
   deleteProject: (id: string) => Promise<void>;
   refreshProjects: () => Promise<void>;
 }
@@ -54,6 +59,17 @@ export const ProjectProvider = ({ children }: { children: React.ReactNode }) => 
     fetchProjects();
   }, [user]);
 
+  const ensureProject = async (toolType: ToolType) => {
+    if (!user) return null;
+
+    const project = await ensureProjectData(user.id, toolType);
+    if (project) {
+      // Refresh projects list
+      await fetchProjects();
+    }
+    return project;
+  };
+
   const createProject = async (project: Omit<Project, 'id' | 'user_id' | 'created_at' | 'updated_at'>) => {
     if (!user) return null;
 
@@ -68,6 +84,16 @@ export const ProjectProvider = ({ children }: { children: React.ReactNode }) => 
       return data as Project;
     }
     return null;
+  };
+
+  const renameProject = async (id: string, newName: string) => {
+    if (!user) return { success: false, error: 'Not authenticated' };
+
+    const result = await renameProjectData(id, newName, user.id);
+    if (result.success) {
+      await fetchProjects();
+    }
+    return result;
   };
 
   const updateProject = async (id: string, updates: Partial<Project>) => {
@@ -95,9 +121,11 @@ export const ProjectProvider = ({ children }: { children: React.ReactNode }) => 
   return (
     <ProjectContext.Provider value={{ 
       projects, 
-      loading, 
+      loading,
+      ensureProject,
       createProject, 
-      updateProject, 
+      updateProject,
+      renameProject,
       deleteProject,
       refreshProjects: fetchProjects 
     }}>

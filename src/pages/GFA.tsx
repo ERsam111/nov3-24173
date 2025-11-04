@@ -16,7 +16,8 @@ import { ScenarioSelector } from "@/components/gfa/ScenarioSelector";
 import { useScenarios } from "@/contexts/ScenarioContext";
 import { ProjectScenarioNav } from "@/components/ProjectScenarioNav";
 import { useProjects, Project } from "@/contexts/ProjectContext";
-import { ResultHistoryBadges } from "@/components/ResultHistoryBadges";
+import { ResultsNavigator } from "@/components/ResultsNavigator";
+import { listResults, getResult } from "@/lib/data/results";
 
 const GFA = () => {
   const navigate = useNavigate();
@@ -42,7 +43,7 @@ const GFA = () => {
   const [warnings, setWarnings] = useState<string[]>([]);
   const [costBreakdown, setCostBreakdown] = useState<{ totalCost: number; transportationCost: number; facilityCost: number; numSites: number } | undefined>();
   const [resultHistory, setResultHistory] = useState<any[]>([]);
-  const [selectedResultNumber, setSelectedResultNumber] = useState<number | null>(null);
+  const [selectedResultId, setSelectedResultId] = useState<string | null>(null);
   
   const [settings, setSettings] = useState<OptimizationSettings>({
     mode: 'sites',
@@ -70,14 +71,15 @@ const GFA = () => {
       toast.success("Scenario data loaded");
     }
 
-    // Load all result history
-    const allResults = await loadAllScenarioOutputs(scenarioId);
+    // Load all result history using new API
+    const allResults = await listResults(scenarioId);
     setResultHistory(allResults);
 
-    // Load latest saved output data
-    const outputData = await loadScenarioOutput(scenarioId);
-    if (outputData) {
-      setDcs(outputData.dcs || []);
+    // Load latest result
+    if (allResults.length > 0) {
+      const latest = allResults[0];
+      setSelectedResultId(latest.id);
+      setDcs(latest.output_data?.dcs || []);
       setFeasible(outputData.feasible ?? true);
       setWarnings(outputData.warnings || []);
       setCostBreakdown(outputData.costBreakdown);
@@ -315,11 +317,15 @@ const GFA = () => {
           </TabsContent>
 
           <TabsContent value="results" className="space-y-6">
-            <ResultHistoryBadges
-              resultHistory={resultHistory}
-              selectedResultNumber={selectedResultNumber}
-              onResultSelect={handleResultSelect}
-            />
+            {currentScenario && (
+              <ResultsNavigator
+                results={resultHistory}
+                selectedResultId={selectedResultId}
+                onResultSelect={handleResultSelect}
+                onResultRenamed={refreshResultHistory}
+                scenarioId={currentScenario.id}
+              />
+            )}
             <GFAResultsPanel
               dcs={dcs}
               customers={customers}
