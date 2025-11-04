@@ -1,10 +1,6 @@
 import { createContext, useContext, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './AuthContext';
-import { ensureScenario as ensureScenarioData, renameScenario as renameScenarioData } from '@/lib/data/scenarios';
-import { createResult, listResults, getResult } from '@/lib/data/results';
-
-export type ModuleType = 'gfa' | 'forecasting' | 'network' | 'inventory';
 
 export interface Scenario {
   id: string;
@@ -12,7 +8,7 @@ export interface Scenario {
   user_id: string;
   name: string;
   description: string | null;
-  module_type: ModuleType;
+  module_type: 'gfa' | 'forecasting' | 'network' | 'inventory';
   status: 'pending' | 'running' | 'completed' | 'failed';
   created_at: string;
   updated_at: string;
@@ -37,15 +33,13 @@ interface ScenarioContextType {
   scenarios: Scenario[];
   currentScenario: Scenario | null;
   loading: boolean;
-  ensureScenario: (projectId: string, moduleType: ModuleType) => Promise<Scenario | null>;
   loadScenariosByProject: (projectId: string) => Promise<void>;
   createScenario: (scenario: Omit<Scenario, 'id' | 'user_id' | 'created_at' | 'updated_at'>) => Promise<Scenario | null>;
   updateScenario: (id: string, updates: Partial<Scenario>) => Promise<void>;
-  renameScenario: (id: string, newName: string) => Promise<{ success: boolean; error?: string }>;
   deleteScenario: (id: string) => Promise<void>;
   setCurrentScenario: (scenario: Scenario | null) => void;
   saveScenarioInput: (scenarioId: string, inputData: any) => Promise<void>;
-  saveScenarioOutput: (scenarioId: string, outputData: any, metrics?: any) => Promise<number>;
+  saveScenarioOutput: (scenarioId: string, outputData: any) => Promise<number>;
   loadScenarioInput: (scenarioId: string) => Promise<any>;
   loadScenarioOutput: (scenarioId: string) => Promise<any>;
   loadAllScenarioOutputs: (scenarioId: string) => Promise<ScenarioOutput[]>;
@@ -59,21 +53,6 @@ export const ScenarioProvider = ({ children }: { children: React.ReactNode }) =>
   const [currentScenario, setCurrentScenario] = useState<Scenario | null>(null);
   const [loading, setLoading] = useState(false);
   const { user } = useAuth();
-
-  const ensureScenario = async (projectId: string, moduleType: ModuleType) => {
-    if (!user) return null;
-
-    const scenario = await ensureScenarioData(projectId, user.id, moduleType);
-    if (scenario) {
-      // Update local state
-      const existingIndex = scenarios.findIndex(s => s.id === scenario.id);
-      if (existingIndex === -1) {
-        setScenarios([scenario as Scenario, ...scenarios]);
-      }
-      setCurrentScenario(scenario as Scenario);
-    }
-    return scenario as Scenario | null;
-  };
 
   const loadScenariosByProject = async (projectId: string) => {
     if (!user) return;
@@ -121,20 +100,6 @@ export const ScenarioProvider = ({ children }: { children: React.ReactNode }) =>
     }
   };
 
-  const renameScenario = async (id: string, newName: string) => {
-    if (!user || !currentScenario) return { success: false, error: 'Not authenticated' };
-
-    const result = await renameScenarioData(id, newName, currentScenario.project_id, currentScenario.module_type);
-    if (result.success) {
-      // Update local state
-      setScenarios(scenarios.map(s => s.id === id ? { ...s, name: newName } : s));
-      if (currentScenario?.id === id) {
-        setCurrentScenario({ ...currentScenario, name: newName });
-      }
-    }
-    return result;
-  };
-
   const deleteScenario = async (id: string) => {
     const { error } = await (supabase as any)
       .from('scenarios')
@@ -150,51 +115,30 @@ export const ScenarioProvider = ({ children }: { children: React.ReactNode }) =>
   };
 
   const saveScenarioInput = async (scenarioId: string, inputData: any) => {
-    // Check if an input already exists for this scenario
-    const { data: existing } = await (supabase as any)
+    await (supabase as any)
       .from('scenario_inputs')
-      .select('id')
-      .eq('scenario_id', scenarioId)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single();
-
-    if (existing) {
-      // Update existing input
-      await (supabase as any)
-        .from('scenario_inputs')
-        .update({ input_data: inputData })
-        .eq('id', existing.id);
-    } else {
-      // Create new input
-      await (supabase as any)
-        .from('scenario_inputs')
-        .insert([{ scenario_id: scenarioId, input_data: inputData }]);
-    }
+      .insert([{ scenario_id: scenarioId, input_data: inputData }]);
   };
 
-  const saveScenarioOutput = async (scenarioId: string, outputData: any, metrics: any = {}) => {
-    if (!currentScenario) return 1;
-
-    // Use the new createResult function
-    const result = await createResult({
-      projectId: currentScenario.project_id,
-      scenarioId: scenarioId,
-      moduleType: currentScenario.module_type,
-      metrics: metrics,
-      payload: outputData
-    });
+  const saveScenarioOutput = async (scenarioId: string, outputData: any) => {
+    // Get existing outputs to determine next result number
+    const { data: existing } = await (supabase as any)
+      .from('scenario_outputs')
+      .select('result_number')
+      .eq('scenario_id', scenarioId)
+      .order('result_number', { ascending: false })
+      .limit(1);
     
-    if (result) {
-      // Automatically update scenario status to completed
-      await updateScenario(scenarioId, { status: 'completed' });
-      
-      // Extract result number from name or use 1
-      const match = result.name.match(/Result (\d+)/);
-      return match ? parseInt(match[1]) : 1;
-    }
+    const resultNumber = existing && existing.length > 0 ? existing[0].result_number + 1 : 1;
     
-    return 1;
+    await (supabase as any)
+      .from('scenario_outputs')
+      .insert([{ scenario_id: scenarioId, output_data: outputData, result_number: resultNumber }]);
+    
+    // Automatically update scenario status to completed
+    await updateScenario(scenarioId, { status: 'completed' });
+    
+    return resultNumber;
   };
 
   const loadScenarioInput = async (scenarioId: string) => {
@@ -259,11 +203,9 @@ export const ScenarioProvider = ({ children }: { children: React.ReactNode }) =>
       scenarios,
       currentScenario,
       loading,
-      ensureScenario,
       loadScenariosByProject,
       createScenario,
       updateScenario,
-      renameScenario,
       deleteScenario,
       setCurrentScenario,
       saveScenarioInput,

@@ -34,8 +34,8 @@ export const ProjectScenarioNav = ({
   onProjectChange,
   onScenarioChange,
 }: ProjectScenarioNavProps) => {
-  const { projects, ensureProject, renameProject: renameProjectApi } = useProjects();
-  const { scenarios, loadScenariosByProject, ensureScenario, updateScenario, renameScenario: renameScenarioApi, setCurrentScenario, currentScenario } = useScenarios();
+  const { projects, createProject, updateProject } = useProjects();
+  const { scenarios, loadScenariosByProject, createScenario, updateScenario, setCurrentScenario, currentScenario } = useScenarios();
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [renameProjectOpen, setRenameProjectOpen] = useState(false);
   const [renameScenarioOpen, setRenameScenarioOpen] = useState(false);
@@ -48,28 +48,51 @@ export const ProjectScenarioNav = ({
   // Filter projects by module type
   const moduleProjects = projects.filter(p => p.tool_type === moduleType);
 
-  // Auto-create default project and scenario on mount using ensureProject/ensureScenario
+  // Get module prefix for project naming
+  const getModulePrefix = (type: string) => {
+    switch(type) {
+      case 'gfa': return 'GFA';
+      case 'forecasting': return 'DF';
+      case 'inventory': return 'IO';
+      case 'network': return 'Network';
+      default: return '';
+    }
+  };
+
+  // Auto-create default project and scenario on mount
   useEffect(() => {
     const initializeDefaults = async () => {
-      // Ensure a project exists for this module
-      const project = await ensureProject(moduleType);
-      if (project) {
-        setSelectedProject(project);
-        onProjectChange?.(project);
-        
-        // Ensure a scenario exists for this project and module
-        const scenario = await ensureScenario(project.id, moduleType);
-        if (scenario) {
-          setCurrentScenario(scenario);
-          onScenarioChange?.(scenario);
+      // If no projects exist for this module, create "Project 1" with module prefix
+      if (moduleProjects.length === 0 && !currentProjectId) {
+        const prefix = getModulePrefix(moduleType);
+        const newProject = await createProject({
+          name: `${prefix} Project 1`,
+          description: "Default project",
+          tool_type: moduleType,
+          input_data: null,
+          results_data: null,
+          size_mb: 0
+        });
+
+        if (newProject) {
+          setSelectedProject(newProject);
+          loadScenariosByProject(newProject.id);
+          onProjectChange?.(newProject);
         }
+        return;
+      }
+
+      // If we have projects but none selected, select the first one
+      if (moduleProjects.length > 0 && !currentProjectId && !selectedProject) {
+        const firstProject = moduleProjects[0];
+        setSelectedProject(firstProject);
+        loadScenariosByProject(firstProject.id);
+        onProjectChange?.(firstProject);
       }
     };
 
-    if (!selectedProject) {
-      initializeDefaults();
-    }
-  }, [moduleType]);
+    initializeDefaults();
+  }, [moduleProjects.length, currentProjectId]);
 
   // Load project and scenarios on mount or when IDs change
   useEffect(() => {
@@ -82,8 +105,33 @@ export const ProjectScenarioNav = ({
     }
   }, [currentProjectId, projects]);
 
-  // Auto-create default scenario if none exists - now handled by ensureScenario
-  // This section is no longer needed as ensureScenario handles it
+  // Auto-create default scenario if none exists
+  useEffect(() => {
+    const initializeScenario = async () => {
+      if (selectedProject && scenarios.length === 0 && !currentScenario) {
+        // Create "Scenario 1" automatically
+        const newScenario = await createScenario({
+          name: "Scenario 1",
+          description: "Default scenario",
+          project_id: selectedProject.id,
+          module_type: moduleType,
+          status: 'pending',
+        });
+
+        if (newScenario) {
+          setCurrentScenario(newScenario);
+          onScenarioChange?.(newScenario);
+        }
+      } else if (scenarios.length > 0 && !currentScenario) {
+        // If scenarios exist but none selected, select the first one
+        const firstScenario = scenarios[0];
+        setCurrentScenario(firstScenario);
+        onScenarioChange?.(firstScenario);
+      }
+    };
+
+    initializeScenario();
+  }, [selectedProject, scenarios.length, currentScenario]);
 
   useEffect(() => {
     if (currentScenarioId && scenarios.length > 0) {
@@ -98,12 +146,7 @@ export const ProjectScenarioNav = ({
     setSelectedProject(project);
     await loadScenariosByProject(project.id);
     onProjectChange?.(project);
-    // Ensure a scenario exists for this project
-    const scenario = await ensureScenario(project.id, moduleType);
-    if (scenario) {
-      setCurrentScenario(scenario);
-      onScenarioChange?.(scenario);
-    }
+    setCurrentScenario(null);
   };
 
   const handleScenarioSelect = (scenario: Scenario) => {
@@ -112,21 +155,23 @@ export const ProjectScenarioNav = ({
   };
 
   const handleCreateProject = async () => {
-    // Create a new project - ensureProject will handle auto-naming
-    const newProject = await ensureProject(moduleType);
+    const prefix = getModulePrefix(moduleType);
+    const nextProjectNum = moduleProjects.length + 1;
+    
+    const newProject = await createProject({
+      name: `${prefix} Project ${nextProjectNum}`,
+      description: "New project",
+      tool_type: moduleType,
+      input_data: null,
+      results_data: null,
+      size_mb: 0
+    });
 
     if (newProject) {
       setSelectedProject(newProject);
       await loadScenariosByProject(newProject.id);
       onProjectChange?.(newProject);
-      toast.success(`Created ${newProject.name}`);
-      
-      // Ensure a scenario for the new project
-      const scenario = await ensureScenario(newProject.id, moduleType);
-      if (scenario) {
-        setCurrentScenario(scenario);
-        onScenarioChange?.(scenario);
-      }
+      toast.success("Project created successfully");
     } else {
       toast.error("Failed to create project");
     }
@@ -143,23 +188,20 @@ export const ProjectScenarioNav = ({
       return;
     }
 
-    // Use ensureScenario then rename, or use createScenario - but we removed it
-    // For now, we'll create a new scenario via ensureScenario and then rename
-    const newScenario = await ensureScenario(selectedProject.id, moduleType);
+    const newScenario = await createScenario({
+      name: scenarioName,
+      description: scenarioDescription || null,
+      project_id: selectedProject.id,
+      module_type: moduleType,
+      status: 'pending',
+    });
 
     if (newScenario) {
-      // Rename the scenario
-      const result = await renameScenarioApi(newScenario.id, scenarioName);
-      
-      if (result.success) {
-        toast.success(`Created ${scenarioName}`);
-        setCreateScenarioOpen(false);
-        setScenarioName("");
-        setScenarioDescription("");
-        handleScenarioSelect(newScenario);
-      } else {
-        toast.error(result.error || "Failed to set scenario name");
-      }
+      toast.success("Scenario created successfully");
+      setCreateScenarioOpen(false);
+      setScenarioName("");
+      setScenarioDescription("");
+      handleScenarioSelect(newScenario);
     } else {
       toast.error("Failed to create scenario");
     }
@@ -173,15 +215,14 @@ export const ProjectScenarioNav = ({
       return;
     }
 
-    const result = await renameProjectApi(selectedProject.id, projectName);
+    await updateProject(selectedProject.id, { 
+      name: projectName, 
+      description: projectDescription 
+    });
     
-    if (result.success) {
-      setSelectedProject({ ...selectedProject, name: projectName });
-      setRenameProjectOpen(false);
-      toast.success(`Renamed to ${projectName}`);
-    } else {
-      toast.error(result.error || "Failed to rename project");
-    }
+    setSelectedProject({ ...selectedProject, name: projectName, description: projectDescription });
+    setRenameProjectOpen(false);
+    toast.success("Project renamed successfully");
   };
 
   const handleRenameScenario = async () => {
@@ -192,14 +233,13 @@ export const ProjectScenarioNav = ({
       return;
     }
 
-    const result = await renameScenarioApi(currentScenario.id, scenarioName);
+    await updateScenario(currentScenario.id, { 
+      name: scenarioName, 
+      description: scenarioDescription 
+    });
     
-    if (result.success) {
-      setRenameScenarioOpen(false);
-      toast.success(`Renamed to ${scenarioName}`);
-    } else {
-      toast.error(result.error || "Failed to rename scenario");
-    }
+    setRenameScenarioOpen(false);
+    toast.success("Scenario renamed successfully");
   };
 
   const openRenameProject = () => {

@@ -160,47 +160,25 @@ export type Database = {
         Row: {
           created_at: string
           id: string
-          metrics: Json | null
-          module_type: string
-          name: string
           output_data: Json
-          project_id: string
           result_number: number
           scenario_id: string
-          version: number | null
         }
         Insert: {
           created_at?: string
           id?: string
-          metrics?: Json | null
-          module_type: string
-          name: string
           output_data: Json
-          project_id: string
           result_number?: number
           scenario_id: string
-          version?: number | null
         }
         Update: {
           created_at?: string
           id?: string
-          metrics?: Json | null
-          module_type?: string
-          name?: string
           output_data?: Json
-          project_id?: string
           result_number?: number
           scenario_id?: string
-          version?: number | null
         }
         Relationships: [
-          {
-            foreignKeyName: "scenario_outputs_project_id_fkey"
-            columns: ["project_id"]
-            isOneToOne: false
-            referencedRelation: "projects"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "scenario_outputs_scenario_id_fkey"
             columns: ["scenario_id"]

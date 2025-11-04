@@ -8,7 +8,7 @@ import { Customer, DistributionCenter, OptimizationSettings, Product } from "@/t
 import { optimizeWithConstraints } from "@/utils/geoCalculations";
 import { exportReport } from "@/utils/exportReport";
 import { toast } from "sonner";
-import { GFACompactInputPanel } from "@/components/gfa/GFACompactInputPanel";
+import { GFAInputPanel } from "@/components/gfa/GFAInputPanel";
 import { GFAMapPanel } from "@/components/gfa/GFAMapPanel";
 import { GFAOptimizationPanel } from "@/components/gfa/GFAOptimizationPanel";
 import { GFAResultsPanel } from "@/components/gfa/GFAResultsPanel";
@@ -16,8 +16,7 @@ import { ScenarioSelector } from "@/components/gfa/ScenarioSelector";
 import { useScenarios } from "@/contexts/ScenarioContext";
 import { ProjectScenarioNav } from "@/components/ProjectScenarioNav";
 import { useProjects, Project } from "@/contexts/ProjectContext";
-import { ResultsNavigator } from "@/components/ResultsNavigator";
-import { listResults, getResult } from "@/lib/data/results";
+import { ResultHistoryBadges } from "@/components/ResultHistoryBadges";
 
 const GFA = () => {
   const navigate = useNavigate();
@@ -43,7 +42,7 @@ const GFA = () => {
   const [warnings, setWarnings] = useState<string[]>([]);
   const [costBreakdown, setCostBreakdown] = useState<{ totalCost: number; transportationCost: number; facilityCost: number; numSites: number } | undefined>();
   const [resultHistory, setResultHistory] = useState<any[]>([]);
-  const [selectedResultId, setSelectedResultId] = useState<string | null>(null);
+  const [selectedResultNumber, setSelectedResultNumber] = useState<number | null>(null);
   
   const [settings, setSettings] = useState<OptimizationSettings>({
     mode: 'sites',
@@ -71,43 +70,37 @@ const GFA = () => {
       toast.success("Scenario data loaded");
     }
 
-    // Load all result history using new API
-    const allResults = await listResults(scenarioId);
+    // Load all result history
+    const allResults = await loadAllScenarioOutputs(scenarioId);
     setResultHistory(allResults);
 
-    // Load latest result
-    if (allResults.length > 0) {
-      const latest = allResults[0];
-      setSelectedResultId(latest.id);
-      setDcs(latest.output_data?.dcs || []);
-      setFeasible(latest.output_data?.feasible ?? true);
-      setWarnings(latest.output_data?.warnings || []);
-      setCostBreakdown(latest.output_data?.costBreakdown);
-      if (latest.output_data?.costBreakdown) {
-        setActiveTab("results");
+    // Load latest saved output data
+    const outputData = await loadScenarioOutput(scenarioId);
+    if (outputData) {
+      setDcs(outputData.dcs || []);
+      setFeasible(outputData.feasible ?? true);
+      setWarnings(outputData.warnings || []);
+      setCostBreakdown(outputData.costBreakdown);
+      
+      // Set selected result to the latest
+      if (allResults.length > 0) {
+        setSelectedResultNumber(allResults[allResults.length - 1].result_number);
       }
     }
   };
 
-  // Handle result selection from navigator
-  const handleResultSelect = async (result: any) => {
-    setSelectedResultId(result.id);
-    const fullResult = await getResult(result.id);
-    if (fullResult) {
-      setDcs(fullResult.output_data?.dcs || []);
-      setFeasible(fullResult.output_data?.feasible ?? true);
-      setWarnings(fullResult.output_data?.warnings || []);
-      setCostBreakdown(fullResult.output_data?.costBreakdown);
-      setActiveTab("results");
-      toast.success(`Loaded ${result.name}`);
-    }
-  };
-
-  // Refresh result history after rename or new result
-  const refreshResultHistory = async () => {
-    if (currentScenario) {
-      const allResults = await listResults(currentScenario.id);
-      setResultHistory(allResults);
+  // Handle result version selection
+  const handleResultSelect = async (resultNumber: number) => {
+    if (!currentScenario) return;
+    
+    const outputData = await loadScenarioOutputByVersion(currentScenario.id, resultNumber);
+    if (outputData) {
+      setDcs(outputData.dcs || []);
+      setFeasible(outputData.feasible ?? true);
+      setWarnings(outputData.warnings || []);
+      setCostBreakdown(outputData.costBreakdown);
+      setSelectedResultNumber(resultNumber);
+      toast.success(`Loaded Result ${resultNumber}`);
     }
   };
 
@@ -188,32 +181,28 @@ const GFA = () => {
     setWarnings(result.warnings);
     setCostBreakdown(result.costBreakdown);
 
-    // Save result using new API with metrics
-    const metrics = {
-      totalCost: result.costBreakdown?.totalCost,
-      numSites: result.costBreakdown?.numSites,
-      runTimeSec: Math.round((Date.now() - Date.now()) / 1000) // placeholder
-    };
-    
-    await saveScenarioOutput(currentScenario.id, {
+    // Save result with version number to database
+    const resultNumber = await saveScenarioOutput(currentScenario.id, {
       dcs: result.dcs,
       feasible: result.feasible,
       warnings: result.warnings,
       costBreakdown: result.costBreakdown,
-    }, metrics);
+    });
 
     // Reload result history
-    await refreshResultHistory();
+    const allResults = await loadAllScenarioOutputs(currentScenario.id);
+    setResultHistory(allResults);
+    setSelectedResultNumber(resultNumber);
 
     if (result.feasible) {
       if (settings.mode === 'cost' && result.costBreakdown) {
-        toast.success(`Saved! Optimal solution: ${result.costBreakdown.numSites} sites with total cost $${result.costBreakdown.totalCost.toLocaleString()}`);
+        toast.success(`Result ${resultNumber} saved! Optimal solution: ${result.costBreakdown.numSites} sites with total cost $${result.costBreakdown.totalCost.toLocaleString()}`);
       } else {
-        toast.success(`Result saved successfully!`);
+        toast.success(`Result ${resultNumber} saved successfully!`);
       }
       setActiveTab("results");
     } else {
-      toast.warning(`Saved with warnings. See Results tab.`);
+      toast.warning(`Result ${resultNumber} saved with warnings. See Results tab.`);
       setActiveTab("results");
     }
   };
@@ -296,21 +285,14 @@ const GFA = () => {
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="input" className="h-[calc(100vh-200px)]">
-            <GFACompactInputPanel
+          <TabsContent value="input" className="space-y-6">
+            <GFAInputPanel
               customers={customers}
               products={products}
               settings={settings}
               onCustomersChange={setCustomers}
               onProductsChange={setProducts}
               onSettingsChange={setSettings}
-              mapComponent={
-                <GFAMapPanel
-                  customers={customers}
-                  dcs={dcs}
-                  settings={settings}
-                />
-              }
             />
           </TabsContent>
 
@@ -333,15 +315,11 @@ const GFA = () => {
           </TabsContent>
 
           <TabsContent value="results" className="space-y-6">
-            {currentScenario && (
-              <ResultsNavigator
-                results={resultHistory}
-                selectedResultId={selectedResultId}
-                onResultSelect={handleResultSelect}
-                onResultRenamed={refreshResultHistory}
-                scenarioId={currentScenario.id}
-              />
-            )}
+            <ResultHistoryBadges
+              resultHistory={resultHistory}
+              selectedResultNumber={selectedResultNumber}
+              onResultSelect={handleResultSelect}
+            />
             <GFAResultsPanel
               dcs={dcs}
               customers={customers}
