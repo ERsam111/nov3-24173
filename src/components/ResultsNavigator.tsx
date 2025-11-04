@@ -2,9 +2,19 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatDistanceToNow } from "date-fns";
-import { ChevronDown, Edit2, Check, X } from "lucide-react";
-import { Result, renameResult } from "@/lib/data/results";
+import { ChevronDown, Edit2, Check, X, Trash2 } from "lucide-react";
+import { Result, renameResult, deleteResult } from "@/lib/data/results";
 import { toast } from "sonner";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { generateNameSuggestions } from "@/lib/naming";
 import {
   DropdownMenu,
@@ -34,6 +44,8 @@ export function ResultsNavigator({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const [isOpen, setIsOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [resultToDelete, setResultToDelete] = useState<Result | null>(null);
 
   const selectedResult = results.find(r => r.id === selectedResultId);
 
@@ -67,6 +79,37 @@ export function ResultsNavigator({
   const cancelEdit = () => {
     setEditingId(null);
     setEditName("");
+  };
+
+  const handleDeleteClick = (result: Result, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setResultToDelete(result);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!resultToDelete) return;
+
+    const response = await deleteResult(resultToDelete.id);
+    
+    if (response.success) {
+      toast.success(`Deleted "${resultToDelete.name}"`);
+      
+      // If deleted result was selected, clear selection
+      if (selectedResultId === resultToDelete.id) {
+        const remainingResults = results.filter(r => r.id !== resultToDelete.id);
+        if (remainingResults.length > 0) {
+          onResultSelect(remainingResults[0]);
+        }
+      }
+      
+      onResultRenamed?.(); // Refresh list
+    } else {
+      toast.error(response.error || "Failed to delete result");
+    }
+    
+    setDeleteDialogOpen(false);
+    setResultToDelete(null);
   };
 
   if (results.length === 0) {
@@ -178,14 +221,24 @@ export function ResultsNavigator({
                         </Badge>
                       )}
                     </div>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-6 w-6 p-0"
-                      onClick={(e) => startEdit(result, e)}
-                    >
-                      <Edit2 className="h-3 w-3" />
-                    </Button>
+                    <div className="flex gap-1">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-6 w-6 p-0"
+                        onClick={(e) => startEdit(result, e)}
+                      >
+                        <Edit2 className="h-3 w-3" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-6 w-6 p-0 text-destructive hover:text-destructive"
+                        onClick={(e) => handleDeleteClick(result, e)}
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </div>
                   </div>
                   <div className="flex items-center gap-3 text-xs text-muted-foreground">
                     <span>
@@ -229,6 +282,23 @@ export function ResultsNavigator({
           )}
         </div>
       )}
+
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Result</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{resultToDelete?.name}"? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteConfirm} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

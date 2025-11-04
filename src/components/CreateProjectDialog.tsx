@@ -36,6 +36,15 @@ export function CreateProjectDialog({
   const { createProject } = useProjects();
   const navigate = useNavigate();
 
+  // Reset form when dialog opens
+  const handleOpenChange = (isOpen: boolean) => {
+    if (isOpen) {
+      setName('');
+      setDescription('');
+    }
+    onOpenChange(isOpen);
+  };
+
   const handleCreate = async () => {
     if (!name.trim()) {
       toast.error('Please enter a project name');
@@ -67,7 +76,7 @@ export function CreateProjectDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Create New Project</DialogTitle>
@@ -77,19 +86,25 @@ export function CreateProjectDialog({
         </DialogHeader>
         <div className="space-y-4 py-4">
           <div className="space-y-2">
-            <Label htmlFor="project-name">Project Name</Label>
+            <Label htmlFor="project-name">Project Name *</Label>
             <Input
               id="project-name"
-              placeholder="Enter project name"
+              placeholder="e.g., North America Expansion 2025"
               value={name}
               onChange={(e) => setName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && name.trim()) {
+                  handleCreate();
+                }
+              }}
+              autoFocus
             />
           </div>
           <div className="space-y-2">
             <Label htmlFor="project-description">Description (Optional)</Label>
             <Textarea
               id="project-description"
-              placeholder="Enter project description"
+              placeholder="Brief description of this project"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={3}
@@ -97,10 +112,10 @@ export function CreateProjectDialog({
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button variant="outline" onClick={() => handleOpenChange(false)}>
             Cancel
           </Button>
-          <Button onClick={handleCreate} disabled={loading}>
+          <Button onClick={handleCreate} disabled={loading || !name.trim()}>
             {loading ? 'Creating...' : 'Create Project'}
           </Button>
         </DialogFooter>

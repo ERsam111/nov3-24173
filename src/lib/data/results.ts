@@ -203,3 +203,21 @@ export async function renameResult(
     return { success: false, error: 'Failed to rename result' };
   }
 }
+
+/**
+ * Delete a result
+ */
+export async function deleteResult(id: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { error } = await supabase
+      .from('scenario_outputs')
+      .delete()
+      .eq('id', id);
+
+    if (error) throw error;
+    return { success: true };
+  } catch (error) {
+    console.error('Error deleting result:', error);
+    return { success: false, error: 'Failed to delete result' };
+  }
+}
