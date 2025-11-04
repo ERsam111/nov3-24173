@@ -104,7 +104,7 @@ export function GFACompactInputPanel({
   return (
     <div className="flex h-full gap-2 p-2">
       {/* Left Panel - Tables */}
-      <div className="flex-1 flex flex-col gap-2 overflow-auto">
+      <div className="w-[500px] flex-shrink-0 flex flex-col gap-2 overflow-auto">
         {/* Compact Top Toolbar */}
         <div className="flex items-center gap-1 px-2 py-1 bg-muted/50 rounded-md border">
           <Button
