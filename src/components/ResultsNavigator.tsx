@@ -1,13 +1,20 @@
 import { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatDistanceToNow } from "date-fns";
-import { ChevronDown, ChevronUp, Edit2, Eye } from "lucide-react";
+import { ChevronDown, Edit2, Check, X } from "lucide-react";
 import { Result, renameResult } from "@/lib/data/results";
 import { toast } from "sonner";
 import { generateNameSuggestions } from "@/lib/naming";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+  DropdownMenuLabel,
+} from "@/components/ui/dropdown-menu";
+import { Badge } from "@/components/ui/badge";
 
 interface ResultsNavigatorProps {
   results: Result[];
@@ -24,11 +31,11 @@ export function ResultsNavigator({
   onResultRenamed,
   scenarioId
 }: ResultsNavigatorProps) {
-  const [showAll, setShowAll] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
+  const [isOpen, setIsOpen] = useState(false);
 
-  const displayedResults = showAll ? results : results.slice(0, 10);
+  const selectedResult = results.find(r => r.id === selectedResultId);
 
   const handleRename = async (resultId: string) => {
     if (!editName.trim()) {
@@ -50,9 +57,11 @@ export function ResultsNavigator({
     }
   };
 
-  const startEdit = (result: Result) => {
+  const startEdit = (result: Result, e: React.MouseEvent) => {
+    e.stopPropagation();
     setEditingId(result.id);
     setEditName(result.name);
+    setIsOpen(true);
   };
 
   const cancelEdit = () => {
@@ -62,121 +71,164 @@ export function ResultsNavigator({
 
   if (results.length === 0) {
     return (
-      <Card>
-        <CardContent className="pt-6">
-          <div className="text-center text-muted-foreground">
-            <p className="text-sm">No results yet. Run an optimization to create your first result.</p>
-          </div>
-        </CardContent>
-      </Card>
+      <div className="flex items-center justify-between p-4 bg-muted/30 rounded-lg border">
+        <div className="text-sm text-muted-foreground">
+          No results yet. Run an optimization to create your first result.
+        </div>
+      </div>
     );
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-sm font-medium">Results History</CardTitle>
-          {results.length > 10 && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setShowAll(!showAll)}
-              className="gap-2"
-            >
-              {showAll ? (
+    <div className="flex items-center gap-3 p-4 bg-muted/30 rounded-lg border">
+      <span className="text-sm font-medium">Result:</span>
+      
+      <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
+        <DropdownMenuTrigger asChild>
+          <Button variant="outline" className="min-w-[300px] justify-between">
+            <div className="flex items-center gap-2 overflow-hidden">
+              {selectedResult ? (
                 <>
-                  Show Less <ChevronUp className="h-4 w-4" />
+                  <span className="truncate">{selectedResult.name}</span>
+                  <Badge variant="secondary" className="text-xs">
+                    #{selectedResult.result_number}
+                  </Badge>
                 </>
               ) : (
-                <>
-                  View All ({results.length}) <ChevronDown className="h-4 w-4" />
-                </>
+                <span>Select a result</span>
               )}
-            </Button>
-          )}
-        </div>
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-2">
-          {displayedResults.map((result) => (
-            <div
+            </div>
+            <ChevronDown className="h-4 w-4 ml-2 flex-shrink-0" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="w-[400px] max-h-[400px] overflow-y-auto">
+          <DropdownMenuLabel>
+            <div className="flex items-center justify-between">
+              <span>Results History</span>
+              <span className="text-xs text-muted-foreground font-normal">
+                {results.length} result{results.length !== 1 ? 's' : ''}
+              </span>
+            </div>
+          </DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          {results.map((result) => (
+            <DropdownMenuItem
               key={result.id}
-              className={`flex items-center justify-between p-3 rounded-lg border transition-colors ${
-                selectedResultId === result.id
-                  ? "border-primary bg-primary/5"
-                  : "border-border hover:bg-muted/50"
+              className={`flex flex-col items-start gap-1 p-3 cursor-pointer ${
+                selectedResultId === result.id ? "bg-primary/10" : ""
               }`}
+              onSelect={() => {
+                if (editingId !== result.id) {
+                  onResultSelect(result);
+                }
+              }}
             >
-              <div className="flex-1 min-w-0">
-                {editingId === result.id ? (
-                  <div className="flex gap-2">
-                    <Input
-                      value={editName}
-                      onChange={(e) => setEditName(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") handleRename(result.id);
-                        if (e.key === "Escape") cancelEdit();
-                      }}
-                      className="h-8"
-                      autoFocus
-                    />
-                    <Button size="sm" onClick={() => handleRename(result.id)}>
-                      Save
-                    </Button>
-                    <Button size="sm" variant="ghost" onClick={cancelEdit}>
-                      Cancel
-                    </Button>
-                  </div>
-                ) : (
-                  <>
+              {editingId === result.id ? (
+                <div className="flex gap-2 w-full" onClick={(e) => e.stopPropagation()}>
+                  <Input
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        handleRename(result.id);
+                      }
+                      if (e.key === "Escape") {
+                        cancelEdit();
+                      }
+                      e.stopPropagation();
+                    }}
+                    className="h-7 text-sm"
+                    autoFocus
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                  <Button 
+                    size="sm" 
+                    variant="ghost" 
+                    className="h-7 w-7 p-0"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleRename(result.id);
+                    }}
+                  >
+                    <Check className="h-3 w-3" />
+                  </Button>
+                  <Button 
+                    size="sm" 
+                    variant="ghost" 
+                    className="h-7 w-7 p-0"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      cancelEdit();
+                    }}
+                  >
+                    <X className="h-3 w-3" />
+                  </Button>
+                </div>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between w-full">
                     <div className="flex items-center gap-2">
                       <span className="font-medium text-sm">{result.name}</span>
                       <Badge variant="outline" className="text-xs">
                         #{result.result_number}
                       </Badge>
-                    </div>
-                    <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
-                      <span>
-                        {formatDistanceToNow(new Date(result.created_at), { addSuffix: true })}
-                      </span>
-                      {result.metrics && Object.keys(result.metrics).length > 0 && (
-                        <span className="flex gap-2">
-                          {result.metrics.totalCost && (
-                            <span>Cost: ${result.metrics.totalCost.toLocaleString()}</span>
-                          )}
-                          {result.metrics.serviceLevel && (
-                            <span>SL: {result.metrics.serviceLevel}%</span>
-                          )}
-                        </span>
+                      {selectedResultId === result.id && (
+                        <Badge variant="default" className="text-xs">
+                          Current
+                        </Badge>
                       )}
                     </div>
-                  </>
-                )}
-              </div>
-              <div className="flex gap-2 ml-4">
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => startEdit(result)}
-                  title="Rename result"
-                >
-                  <Edit2 className="h-4 w-4" />
-                </Button>
-                <Button
-                  size="sm"
-                  variant={selectedResultId === result.id ? "default" : "outline"}
-                  onClick={() => onResultSelect(result)}
-                  className="gap-2"
-                >
-                  <Eye className="h-4 w-4" />
-                  {selectedResultId === result.id ? "Viewing" : "Open"}
-                </Button>
-              </div>
-            </div>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-6 w-6 p-0"
+                      onClick={(e) => startEdit(result, e)}
+                    >
+                      <Edit2 className="h-3 w-3" />
+                    </Button>
+                  </div>
+                  <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                    <span>
+                      {formatDistanceToNow(new Date(result.created_at), { addSuffix: true })}
+                    </span>
+                    {result.metrics && Object.keys(result.metrics).length > 0 && (
+                      <span className="flex gap-2">
+                        {result.metrics.totalCost && (
+                          <span>Cost: ${result.metrics.totalCost.toLocaleString()}</span>
+                        )}
+                        {result.metrics.numSites && (
+                          <span>Sites: {result.metrics.numSites}</span>
+                        )}
+                        {result.metrics.serviceLevel && (
+                          <span>SL: {result.metrics.serviceLevel}%</span>
+                        )}
+                      </span>
+                    )}
+                  </div>
+                </>
+              )}
+            </DropdownMenuItem>
           ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      {selectedResult && (
+        <div className="flex items-center gap-3 text-xs text-muted-foreground">
+          <span>
+            {formatDistanceToNow(new Date(selectedResult.created_at), { addSuffix: true })}
+          </span>
+          {selectedResult.metrics && (
+            <>
+              {selectedResult.metrics.totalCost && (
+                <span>Cost: ${selectedResult.metrics.totalCost.toLocaleString()}</span>
+              )}
+              {selectedResult.metrics.numSites && (
+                <span>Sites: {selectedResult.metrics.numSites}</span>
+              )}
+            </>
+          )}
         </div>
-      </CardContent>
-    </Card>
+      )}
+    </div>
   );
 }
