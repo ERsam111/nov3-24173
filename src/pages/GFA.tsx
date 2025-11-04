@@ -80,29 +80,34 @@ const GFA = () => {
       const latest = allResults[0];
       setSelectedResultId(latest.id);
       setDcs(latest.output_data?.dcs || []);
-      setFeasible(outputData.feasible ?? true);
-      setWarnings(outputData.warnings || []);
-      setCostBreakdown(outputData.costBreakdown);
-      
-      // Set selected result to the latest
-      if (allResults.length > 0) {
-        setSelectedResultNumber(allResults[allResults.length - 1].result_number);
+      setFeasible(latest.output_data?.feasible ?? true);
+      setWarnings(latest.output_data?.warnings || []);
+      setCostBreakdown(latest.output_data?.costBreakdown);
+      if (latest.output_data?.costBreakdown) {
+        setActiveTab("results");
       }
     }
   };
 
-  // Handle result version selection
-  const handleResultSelect = async (resultNumber: number) => {
-    if (!currentScenario) return;
-    
-    const outputData = await loadScenarioOutputByVersion(currentScenario.id, resultNumber);
-    if (outputData) {
-      setDcs(outputData.dcs || []);
-      setFeasible(outputData.feasible ?? true);
-      setWarnings(outputData.warnings || []);
-      setCostBreakdown(outputData.costBreakdown);
-      setSelectedResultNumber(resultNumber);
-      toast.success(`Loaded Result ${resultNumber}`);
+  // Handle result selection from navigator
+  const handleResultSelect = async (result: any) => {
+    setSelectedResultId(result.id);
+    const fullResult = await getResult(result.id);
+    if (fullResult) {
+      setDcs(fullResult.output_data?.dcs || []);
+      setFeasible(fullResult.output_data?.feasible ?? true);
+      setWarnings(fullResult.output_data?.warnings || []);
+      setCostBreakdown(fullResult.output_data?.costBreakdown);
+      setActiveTab("results");
+      toast.success(`Loaded ${result.name}`);
+    }
+  };
+
+  // Refresh result history after rename or new result
+  const refreshResultHistory = async () => {
+    if (currentScenario) {
+      const allResults = await listResults(currentScenario.id);
+      setResultHistory(allResults);
     }
   };
 
@@ -183,28 +188,32 @@ const GFA = () => {
     setWarnings(result.warnings);
     setCostBreakdown(result.costBreakdown);
 
-    // Save result with version number to database
-    const resultNumber = await saveScenarioOutput(currentScenario.id, {
+    // Save result using new API with metrics
+    const metrics = {
+      totalCost: result.costBreakdown?.totalCost,
+      numSites: result.costBreakdown?.numSites,
+      runTimeSec: Math.round((Date.now() - Date.now()) / 1000) // placeholder
+    };
+    
+    await saveScenarioOutput(currentScenario.id, {
       dcs: result.dcs,
       feasible: result.feasible,
       warnings: result.warnings,
       costBreakdown: result.costBreakdown,
-    });
+    }, metrics);
 
     // Reload result history
-    const allResults = await loadAllScenarioOutputs(currentScenario.id);
-    setResultHistory(allResults);
-    setSelectedResultNumber(resultNumber);
+    await refreshResultHistory();
 
     if (result.feasible) {
       if (settings.mode === 'cost' && result.costBreakdown) {
-        toast.success(`Result ${resultNumber} saved! Optimal solution: ${result.costBreakdown.numSites} sites with total cost $${result.costBreakdown.totalCost.toLocaleString()}`);
+        toast.success(`Saved! Optimal solution: ${result.costBreakdown.numSites} sites with total cost $${result.costBreakdown.totalCost.toLocaleString()}`);
       } else {
-        toast.success(`Result ${resultNumber} saved successfully!`);
+        toast.success(`Result saved successfully!`);
       }
       setActiveTab("results");
     } else {
-      toast.warning(`Result ${resultNumber} saved with warnings. See Results tab.`);
+      toast.warning(`Saved with warnings. See Results tab.`);
       setActiveTab("results");
     }
   };

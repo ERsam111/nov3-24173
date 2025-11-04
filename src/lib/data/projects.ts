@@ -19,24 +19,25 @@ export interface Project {
 /**
  * Ensure a project exists for the user in the given module
  * Returns existing project or creates one with auto-name
+ * NOTE: Only creates ONE project per module type - always reuses existing
  */
 export async function ensureProject(userId: string, toolType: ToolType): Promise<Project | null> {
   try {
-    // Try to get the most recent project for this tool type
+    // ALWAYS get the first project for this tool type (not most recent, just any)
     const { data: existing, error: fetchError } = await supabase
       .from('projects')
       .select('*')
       .eq('user_id', userId)
       .eq('tool_type', toolType)
-      .order('updated_at', { ascending: false })
       .limit(1)
       .single();
 
     if (existing && !fetchError) {
+      // Found existing project - always reuse it
       return existing as Project;
     }
 
-    // Create new project with auto-name
+    // No project exists - create the first one with auto-name
     const name = await nextAutoName(
       async () => {
         const { data } = await supabase
@@ -63,35 +64,19 @@ export async function ensureProject(userId: string, toolType: ToolType): Promise
       .single();
 
     if (createError) {
-      // Handle race condition - try again with next number
+      // Handle race condition - try to fetch again instead of creating another
       if (createError.code === '23505') {
-        const retryName = await nextAutoName(
-          async () => {
-            const { data } = await supabase
-              .from('projects')
-              .select('name')
-              .eq('user_id', userId);
-            return data?.map(p => p.name) || [];
-          },
-          'Project'
-        );
-
-        const { data: retryProject, error: retryError } = await supabase
+        const { data: existingAfterRace } = await supabase
           .from('projects')
-          .insert([{
-            user_id: userId,
-            name: retryName,
-            tool_type: toolType,
-            description: null,
-            input_data: {},
-            results_data: {},
-            size_mb: 0
-          }])
-          .select()
+          .select('*')
+          .eq('user_id', userId)
+          .eq('tool_type', toolType)
+          .limit(1)
           .single();
 
-        if (retryError) throw retryError;
-        return retryProject as Project;
+        if (existingAfterRace) {
+          return existingAfterRace as Project;
+        }
       }
       throw createError;
     }
