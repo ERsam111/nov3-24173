@@ -1,61 +1,51 @@
 import { useState, useEffect } from "react";
 import { ResultsSidebar } from "./ResultsSidebar";
 import { ResultsTable } from "./ResultsTable";
-import { Card, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { useScenarios } from "@/contexts/ScenarioContext";
-import { getScenarioResults } from "@/utils/resultVersioning";
 import { useNetwork } from "@/contexts/NetworkContext";
+import { ResultHistoryBadges } from "@/components/ResultHistoryBadges";
+import { toast } from "sonner";
 
 export function ResultsView() {
   const [activeTable, setActiveTable] = useState<string>("productFlow");
-  const { currentScenario } = useScenarios();
+  const { currentScenario, loadAllScenarioOutputs, loadScenarioOutputByVersion } = useScenarios();
   const { setResults } = useNetwork();
   const [resultHistory, setResultHistory] = useState<any[]>([]);
   const [selectedResultNumber, setSelectedResultNumber] = useState<number | null>(null);
 
   useEffect(() => {
-    if (currentScenario) {
-      const results = getScenarioResults(currentScenario.id);
-      setResultHistory(results);
-      if (results.length > 0) {
-        const latest = results[results.length - 1];
-        setSelectedResultNumber(latest.resultNumber);
+    const loadHistory = async () => {
+      if (currentScenario) {
+        const results = await loadAllScenarioOutputs(currentScenario.id);
+        setResultHistory(results);
+        if (results.length > 0) {
+          const latest = results[results.length - 1];
+          setSelectedResultNumber(latest.result_number);
+          setResults(latest.output_data);
+        }
       }
-    }
+    };
+    loadHistory();
   }, [currentScenario]);
 
-  const handleResultSelect = (resultNumber: number) => {
-    const result = resultHistory.find(r => r.resultNumber === resultNumber);
-    if (result) {
+  const handleResultSelect = async (resultNumber: number) => {
+    if (!currentScenario) return;
+    
+    const outputData = await loadScenarioOutputByVersion(currentScenario.id, resultNumber);
+    if (outputData) {
       setSelectedResultNumber(resultNumber);
-      setResults(result.data);
+      setResults(outputData);
+      toast.success(`Loaded Result ${resultNumber}`);
     }
   };
 
   return (
     <div className="space-y-4">
-      {resultHistory.length > 0 && (
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle>Result History</CardTitle>
-              <div className="flex gap-2">
-                {resultHistory.map((result) => (
-                  <Badge
-                    key={result.resultNumber}
-                    variant={selectedResultNumber === result.resultNumber ? "default" : "outline"}
-                    className="cursor-pointer"
-                    onClick={() => handleResultSelect(result.resultNumber)}
-                  >
-                    Result {result.resultNumber}
-                  </Badge>
-                ))}
-              </div>
-            </div>
-          </CardHeader>
-        </Card>
-      )}
+      <ResultHistoryBadges
+        resultHistory={resultHistory}
+        selectedResultNumber={selectedResultNumber}
+        onResultSelect={handleResultSelect}
+      />
       
       <div className="flex gap-4 h-[calc(100vh-350px)]">
         <ResultsSidebar activeTable={activeTable} onTableSelect={setActiveTable} />

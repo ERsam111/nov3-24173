@@ -16,11 +16,22 @@ import { ScenarioSelector } from "@/components/gfa/ScenarioSelector";
 import { useScenarios } from "@/contexts/ScenarioContext";
 import { ProjectScenarioNav } from "@/components/ProjectScenarioNav";
 import { useProjects, Project } from "@/contexts/ProjectContext";
+import { ResultHistoryBadges } from "@/components/ResultHistoryBadges";
 
 const GFA = () => {
   const navigate = useNavigate();
   const { projects } = useProjects();
-  const { currentScenario, saveScenarioInput, saveScenarioOutput, loadScenarioInput, loadScenarioOutput, updateScenario, loadScenariosByProject } = useScenarios();
+  const { 
+    currentScenario, 
+    saveScenarioInput, 
+    saveScenarioOutput, 
+    loadScenarioInput, 
+    loadScenarioOutput, 
+    loadAllScenarioOutputs,
+    loadScenarioOutputByVersion,
+    updateScenario, 
+    loadScenariosByProject 
+  } = useScenarios();
   const [activeTab, setActiveTab] = useState("input");
   const [currentProject, setCurrentProject] = useState<Project | null>(null);
   
@@ -30,6 +41,8 @@ const GFA = () => {
   const [feasible, setFeasible] = useState(true);
   const [warnings, setWarnings] = useState<string[]>([]);
   const [costBreakdown, setCostBreakdown] = useState<{ totalCost: number; transportationCost: number; facilityCost: number; numSites: number } | undefined>();
+  const [resultHistory, setResultHistory] = useState<any[]>([]);
+  const [selectedResultNumber, setSelectedResultNumber] = useState<number | null>(null);
   
   const [settings, setSettings] = useState<OptimizationSettings>({
     mode: 'sites',
@@ -57,13 +70,37 @@ const GFA = () => {
       toast.success("Scenario data loaded");
     }
 
-    // Load saved output data
+    // Load all result history
+    const allResults = await loadAllScenarioOutputs(scenarioId);
+    setResultHistory(allResults);
+
+    // Load latest saved output data
     const outputData = await loadScenarioOutput(scenarioId);
     if (outputData) {
       setDcs(outputData.dcs || []);
       setFeasible(outputData.feasible ?? true);
       setWarnings(outputData.warnings || []);
       setCostBreakdown(outputData.costBreakdown);
+      
+      // Set selected result to the latest
+      if (allResults.length > 0) {
+        setSelectedResultNumber(allResults[allResults.length - 1].result_number);
+      }
+    }
+  };
+
+  // Handle result version selection
+  const handleResultSelect = async (resultNumber: number) => {
+    if (!currentScenario) return;
+    
+    const outputData = await loadScenarioOutputByVersion(currentScenario.id, resultNumber);
+    if (outputData) {
+      setDcs(outputData.dcs || []);
+      setFeasible(outputData.feasible ?? true);
+      setWarnings(outputData.warnings || []);
+      setCostBreakdown(outputData.costBreakdown);
+      setSelectedResultNumber(resultNumber);
+      toast.success(`Loaded Result ${resultNumber}`);
     }
   };
 
@@ -144,17 +181,18 @@ const GFA = () => {
     setWarnings(result.warnings);
     setCostBreakdown(result.costBreakdown);
 
-    // Add versioned result
-    const { addScenarioResult } = await import("@/utils/resultVersioning");
-    const resultNumber = addScenarioResult(currentScenario.id, {
+    // Save result with version number to database
+    const resultNumber = await saveScenarioOutput(currentScenario.id, {
       dcs: result.dcs,
       feasible: result.feasible,
       warnings: result.warnings,
       costBreakdown: result.costBreakdown,
     });
 
-    // Update scenario status to completed
-    await updateScenario(currentScenario.id, { status: 'completed' });
+    // Reload result history
+    const allResults = await loadAllScenarioOutputs(currentScenario.id);
+    setResultHistory(allResults);
+    setSelectedResultNumber(resultNumber);
 
     if (result.feasible) {
       if (settings.mode === 'cost' && result.costBreakdown) {
@@ -277,6 +315,11 @@ const GFA = () => {
           </TabsContent>
 
           <TabsContent value="results" className="space-y-6">
+            <ResultHistoryBadges
+              resultHistory={resultHistory}
+              selectedResultNumber={selectedResultNumber}
+              onResultSelect={handleResultSelect}
+            />
             <GFAResultsPanel
               dcs={dcs}
               customers={customers}

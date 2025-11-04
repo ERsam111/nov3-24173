@@ -5,7 +5,6 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useNetwork } from "@/contexts/NetworkContext";
 import { useScenarios } from "@/contexts/ScenarioContext";
-import { addScenarioResult } from "@/utils/resultVersioning";
 import { toast } from "sonner";
 import { useState } from "react";
 import { DataIntegrityChecker } from "./DataIntegrityChecker";
@@ -13,7 +12,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 export function OptimizationPanel() {
   const { data, setResults } = useNetwork();
-  const { currentScenario, updateScenario } = useScenarios();
+  const { currentScenario, updateScenario, saveScenarioOutput } = useScenarios();
   const [isOptimizing, setIsOptimizing] = useState(false);
   const [objective, setObjective] = useState<'min_cost' | 'min_time' | 'max_service'>('min_cost');
   const [solver, setSolver] = useState('opensource');
@@ -275,11 +274,8 @@ export function OptimizationPanel() {
       
       setResults(resultsData);
 
-      // Add versioned result
-      const resultNumber = addScenarioResult(currentScenario.id, resultsData);
-
-      // Update scenario status
-      await updateScenario(currentScenario.id, { status: 'completed' });
+      // Save versioned result to database
+      const resultNumber = await saveScenarioOutput(currentScenario.id, resultsData);
       
       toast.success(`Result ${resultNumber} saved! Total cost: $${result?.costSummary?.[0]?.amount?.toFixed(2) || '0'}`);
       
