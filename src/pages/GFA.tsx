@@ -8,7 +8,7 @@ import { Customer, DistributionCenter, OptimizationSettings, Product } from "@/t
 import { optimizeWithConstraints } from "@/utils/geoCalculations";
 import { exportReport } from "@/utils/exportReport";
 import { toast } from "sonner";
-import { GFAInputPanel } from "@/components/gfa/GFAInputPanel";
+import { GFACompactInputPanel } from "@/components/gfa/GFACompactInputPanel";
 import { GFAMapPanel } from "@/components/gfa/GFAMapPanel";
 import { GFAOptimizationPanel } from "@/components/gfa/GFAOptimizationPanel";
 import { GFAResultsPanel } from "@/components/gfa/GFAResultsPanel";
@@ -296,14 +296,21 @@ const GFA = () => {
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="input" className="space-y-6">
-            <GFAInputPanel
+          <TabsContent value="input" className="h-[calc(100vh-200px)]">
+            <GFACompactInputPanel
               customers={customers}
               products={products}
               settings={settings}
               onCustomersChange={setCustomers}
               onProductsChange={setProducts}
               onSettingsChange={setSettings}
+              mapComponent={
+                <GFAMapPanel
+                  customers={customers}
+                  dcs={dcs}
+                  settings={settings}
+                />
+              }
             />
           </TabsContent>
 
