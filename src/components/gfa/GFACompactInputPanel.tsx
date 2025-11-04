@@ -1,13 +1,12 @@
 import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Upload, Download, List, Package, DollarSign, ChevronRight, X } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Upload, Download, Trash2, Plus, X } from "lucide-react";
 import { Customer, Product, OptimizationSettings } from "@/types/gfa";
 import { ExcelUpload } from "./ExcelUpload";
-import { CustomerDataForm } from "./CustomerDataForm";
-import { ProductManager } from "./ProductManager";
-import { CostParameters } from "./CostParameters";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -21,8 +20,6 @@ interface GFACompactInputPanelProps {
   mapComponent: React.ReactNode;
 }
 
-type PanelSection = "customers" | "products" | "costs" | null;
-
 export function GFACompactInputPanel({
   customers,
   products,
@@ -32,15 +29,51 @@ export function GFACompactInputPanel({
   onSettingsChange,
   mapComponent,
 }: GFACompactInputPanelProps) {
-  const [activeSection, setActiveSection] = useState<PanelSection>(null);
   const [showUploadDialog, setShowUploadDialog] = useState(false);
+  const [newCustomer, setNewCustomer] = useState({
+    name: "",
+    latitude: "",
+    longitude: "",
+    demand: "",
+    product: "",
+    city: "",
+  });
 
-  const handleAddCustomer = (customer: Customer) => {
+  const handleAddCustomer = () => {
+    if (!newCustomer.name || !newCustomer.latitude || !newCustomer.longitude || !newCustomer.demand) {
+      toast.error("Please fill all customer fields");
+      return;
+    }
+    
+    const customer: Customer = {
+      id: `customer-${Date.now()}`,
+      name: newCustomer.name,
+      latitude: parseFloat(newCustomer.latitude),
+      longitude: parseFloat(newCustomer.longitude),
+      demand: parseFloat(newCustomer.demand),
+      product: newCustomer.product || products[0]?.name || "",
+      city: newCustomer.city || "Unknown",
+      country: "Unknown",
+      unitOfMeasure: products[0]?.baseUnit || "units",
+      conversionFactor: 1,
+    };
+    
     onCustomersChange([...customers, customer]);
+    setNewCustomer({ name: "", latitude: "", longitude: "", demand: "", product: "", city: "" });
+    toast.success("Customer added");
   };
 
   const handleRemoveCustomer = (id: string) => {
     onCustomersChange(customers.filter((c) => c.id !== id));
+    toast.success("Customer removed");
+  };
+
+  const handleUpdateCustomer = (id: string, field: string, value: any) => {
+    onCustomersChange(
+      customers.map((c) =>
+        c.id === id ? { ...c, [field]: value } : c
+      )
+    );
   };
 
   const handleBulkUpload = (newCustomers: Customer[], mode: "append" | "overwrite") => {
@@ -53,29 +86,10 @@ export function GFACompactInputPanel({
     toast.success(`${newCustomers.length} customers uploaded`);
   };
 
-  const handleProductUpdate = (
-    productName: string,
-    conversionFactor: number,
-    unitConversions?: any[],
-    sellingPrice?: number
-  ) => {
+  const handleUpdateProduct = (name: string, field: string, value: any) => {
     onProductsChange(
       products.map((p) =>
-        p.name === productName
-          ? {
-              name: p.name,
-              baseUnit: p.baseUnit,
-              conversionToStandard: conversionFactor,
-              unitConversions: unitConversions || [],
-              sellingPrice,
-            }
-          : p
-      )
-    );
-
-    onCustomersChange(
-      customers.map((c) =>
-        c.product === productName ? { ...c, conversionFactor } : c
+        p.name === name ? { ...p, [field]: value } : p
       )
     );
   };
@@ -100,9 +114,9 @@ export function GFACompactInputPanel({
   return (
     <div className="flex h-full gap-2 p-2">
       {/* Left Panel - Tables */}
-      <div className="flex-1 flex flex-col gap-2 overflow-auto">
+      <div className="flex-1 flex flex-col gap-3 overflow-auto pr-2">
         {/* Compact Top Toolbar */}
-        <div className="flex items-center gap-1 px-2 py-1 bg-muted/50 rounded-md border">
+        <div className="flex items-center gap-1 px-3 py-2 bg-muted/50 rounded-md border">
           <Button
             variant="ghost"
             size="sm"
@@ -127,58 +141,238 @@ export function GFACompactInputPanel({
         </div>
 
         {/* Customer Data Table */}
-        <Card className="p-3">
-          <div className="flex items-center gap-2 mb-2">
-            <List className="h-4 w-4" />
-            <h3 className="font-semibold text-sm">Customer Data</h3>
-            <span className="text-xs text-muted-foreground ml-auto">{customers.length}</span>
+        <Card className="p-4">
+          <h3 className="font-semibold text-sm mb-3">Customer Data ({customers.length})</h3>
+          <div className="border rounded-md">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-[40px]">#</TableHead>
+                  <TableHead>Name</TableHead>
+                  <TableHead>City</TableHead>
+                  <TableHead>Latitude</TableHead>
+                  <TableHead>Longitude</TableHead>
+                  <TableHead>Demand</TableHead>
+                  <TableHead>Product</TableHead>
+                  <TableHead className="w-[60px]"></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {customers.map((customer, index) => (
+                  <TableRow key={customer.id}>
+                    <TableCell className="text-xs text-muted-foreground">{index + 1}</TableCell>
+                    <TableCell>
+                      <Input
+                        value={customer.name}
+                        onChange={(e) => handleUpdateCustomer(customer.id, "name", e.target.value)}
+                        className="h-8 text-xs"
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Input
+                        value={customer.city}
+                        onChange={(e) => handleUpdateCustomer(customer.id, "city", e.target.value)}
+                        className="h-8 text-xs w-28"
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Input
+                        type="number"
+                        value={customer.latitude}
+                        onChange={(e) => handleUpdateCustomer(customer.id, "latitude", parseFloat(e.target.value))}
+                        className="h-8 text-xs w-24"
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Input
+                        type="number"
+                        value={customer.longitude}
+                        onChange={(e) => handleUpdateCustomer(customer.id, "longitude", parseFloat(e.target.value))}
+                        className="h-8 text-xs w-24"
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Input
+                        type="number"
+                        value={customer.demand}
+                        onChange={(e) => handleUpdateCustomer(customer.id, "demand", parseFloat(e.target.value))}
+                        className="h-8 text-xs w-20"
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Input
+                        value={customer.product}
+                        onChange={(e) => handleUpdateCustomer(customer.id, "product", e.target.value)}
+                        className="h-8 text-xs"
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleRemoveCustomer(customer.id)}
+                        className="h-7 w-7 p-0 hover:bg-destructive/10 hover:text-destructive"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {/* Add New Row */}
+                <TableRow className="bg-muted/30">
+                  <TableCell className="text-xs text-muted-foreground">+</TableCell>
+                  <TableCell>
+                    <Input
+                      placeholder="Name"
+                      value={newCustomer.name}
+                      onChange={(e) => setNewCustomer({ ...newCustomer, name: e.target.value })}
+                      className="h-8 text-xs"
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <Input
+                      placeholder="City"
+                      value={newCustomer.city}
+                      onChange={(e) => setNewCustomer({ ...newCustomer, city: e.target.value })}
+                      className="h-8 text-xs w-28"
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <Input
+                      type="number"
+                      placeholder="Lat"
+                      value={newCustomer.latitude}
+                      onChange={(e) => setNewCustomer({ ...newCustomer, latitude: e.target.value })}
+                      className="h-8 text-xs w-24"
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <Input
+                      type="number"
+                      placeholder="Lng"
+                      value={newCustomer.longitude}
+                      onChange={(e) => setNewCustomer({ ...newCustomer, longitude: e.target.value })}
+                      className="h-8 text-xs w-24"
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <Input
+                      type="number"
+                      placeholder="Demand"
+                      value={newCustomer.demand}
+                      onChange={(e) => setNewCustomer({ ...newCustomer, demand: e.target.value })}
+                      className="h-8 text-xs w-20"
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <Input
+                      placeholder="Product"
+                      value={newCustomer.product}
+                      onChange={(e) => setNewCustomer({ ...newCustomer, product: e.target.value })}
+                      className="h-8 text-xs"
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleAddCustomer}
+                      className="h-7 w-7 p-0 hover:bg-primary/10 hover:text-primary"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              </TableBody>
+            </Table>
           </div>
-          <CustomerDataForm
-            customers={customers}
-            onAddCustomer={handleAddCustomer}
-            onRemoveCustomer={handleRemoveCustomer}
-          />
         </Card>
 
-        {/* Product Management Table */}
+        {/* Product Data Table */}
         {products.length > 0 && (
-          <Card className="p-3">
-            <div className="flex items-center gap-2 mb-2">
-              <Package className="h-4 w-4" />
-              <h3 className="font-semibold text-sm">Products</h3>
-              <span className="text-xs text-muted-foreground ml-auto">{products.length}</span>
+          <Card className="p-4">
+            <h3 className="font-semibold text-sm mb-3">Products ({products.length})</h3>
+            <div className="border rounded-md">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-[40px]">#</TableHead>
+                    <TableHead>Product Name</TableHead>
+                    <TableHead>Base Unit</TableHead>
+                    <TableHead>Selling Price</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {products.map((product, index) => (
+                    <TableRow key={product.name}>
+                      <TableCell className="text-xs text-muted-foreground">{index + 1}</TableCell>
+                      <TableCell className="font-medium">{product.name}</TableCell>
+                      <TableCell>{product.baseUnit}</TableCell>
+                      <TableCell>
+                        <Input
+                          type="number"
+                          value={product.sellingPrice || 0}
+                          onChange={(e) => handleUpdateProduct(product.name, "sellingPrice", parseFloat(e.target.value))}
+                          className="h-8 text-xs w-24"
+                        />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             </div>
-            <ProductManager
-              products={products}
-              onProductUpdate={handleProductUpdate}
-              targetUnit={settings.capacityUnit}
-            />
           </Card>
         )}
 
         {/* Cost Parameters Table */}
-        <Card className="p-3">
-          <div className="flex items-center gap-2 mb-2">
-            <DollarSign className="h-4 w-4" />
-            <h3 className="font-semibold text-sm">Cost Parameters</h3>
+        <Card className="p-4">
+          <h3 className="font-semibold text-sm mb-3">Cost Parameters</h3>
+          <div className="border rounded-md">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Parameter</TableHead>
+                  <TableHead>Value</TableHead>
+                  <TableHead>Unit</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                <TableRow>
+                  <TableCell className="font-medium">Transportation Cost</TableCell>
+                  <TableCell>
+                    <Input
+                      type="number"
+                      value={settings.transportationCostPerMilePerUnit}
+                      onChange={(e) =>
+                        onSettingsChange({ ...settings, transportationCostPerMilePerUnit: parseFloat(e.target.value) })
+                      }
+                      className="h-8 text-xs w-24"
+                    />
+                  </TableCell>
+                  <TableCell className="text-xs text-muted-foreground">
+                    {settings.costUnit}/{settings.distanceUnit}/unit
+                  </TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell className="font-medium">Facility Cost</TableCell>
+                  <TableCell>
+                    <Input
+                      type="number"
+                      value={settings.facilityCost}
+                      onChange={(e) => onSettingsChange({ ...settings, facilityCost: parseFloat(e.target.value) })}
+                      className="h-8 text-xs w-24"
+                    />
+                  </TableCell>
+                  <TableCell className="text-xs text-muted-foreground">{settings.costUnit}/facility</TableCell>
+                </TableRow>
+              </TableBody>
+            </Table>
           </div>
-          <CostParameters
-            transportationCostPerMilePerUnit={settings.transportationCostPerMilePerUnit}
-            facilityCost={settings.facilityCost}
-            distanceUnit={settings.distanceUnit}
-            costUnit={settings.costUnit}
-            onTransportCostChange={(value) =>
-              onSettingsChange({ ...settings, transportationCostPerMilePerUnit: value })
-            }
-            onFacilityCostChange={(value) => onSettingsChange({ ...settings, facilityCost: value })}
-            onDistanceUnitChange={(value) => onSettingsChange({ ...settings, distanceUnit: value })}
-            onCostUnitChange={(value) => onSettingsChange({ ...settings, costUnit: value })}
-          />
         </Card>
       </div>
 
       {/* Right Corner - Map */}
-      <div className="w-96 h-full rounded-lg overflow-hidden border shadow-lg">
+      <div className="w-[500px] h-full rounded-lg overflow-hidden border shadow-lg flex-shrink-0">
         {mapComponent}
       </div>
 
