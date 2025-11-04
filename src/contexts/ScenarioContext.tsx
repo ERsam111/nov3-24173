@@ -150,9 +150,27 @@ export const ScenarioProvider = ({ children }: { children: React.ReactNode }) =>
   };
 
   const saveScenarioInput = async (scenarioId: string, inputData: any) => {
-    await (supabase as any)
+    // Check if an input already exists for this scenario
+    const { data: existing } = await (supabase as any)
       .from('scenario_inputs')
-      .insert([{ scenario_id: scenarioId, input_data: inputData }]);
+      .select('id')
+      .eq('scenario_id', scenarioId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    if (existing) {
+      // Update existing input
+      await (supabase as any)
+        .from('scenario_inputs')
+        .update({ input_data: inputData })
+        .eq('id', existing.id);
+    } else {
+      // Create new input
+      await (supabase as any)
+        .from('scenario_inputs')
+        .insert([{ scenario_id: scenarioId, input_data: inputData }]);
+    }
   };
 
   const saveScenarioOutput = async (scenarioId: string, outputData: any, metrics: any = {}) => {
