@@ -46,13 +46,25 @@ export const ProjectScenarioNav = ({
   // Filter projects by module type
   const moduleProjects = projects.filter(p => p.tool_type === moduleType);
 
+  // Get module prefix for project naming
+  const getModulePrefix = (type: string) => {
+    switch(type) {
+      case 'gfa': return 'GFA';
+      case 'forecasting': return 'DF';
+      case 'inventory': return 'IO';
+      case 'network': return 'Network';
+      default: return '';
+    }
+  };
+
   // Auto-create default project and scenario on mount
   useEffect(() => {
     const initializeDefaults = async () => {
-      // If no projects exist for this module, create "Project 1"
+      // If no projects exist for this module, create "Project 1" with module prefix
       if (moduleProjects.length === 0 && !currentProjectId) {
+        const prefix = getModulePrefix(moduleType);
         const newProject = await createProject({
-          name: "Project 1",
+          name: `${prefix} Project 1`,
           description: "Default project",
           tool_type: moduleType,
           input_data: null,

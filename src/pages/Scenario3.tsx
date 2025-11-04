@@ -1,39 +1,47 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, Download } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { Download } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Scenario3InputForm } from "@/components/forecasting/Scenario3Input";
 import { Scenario3Results } from "@/components/forecasting/Scenario3Results";
 import { Scenario3Input, Scenario3Output } from "@/types/scenario3";
 import { processScenario3Adjustments } from "@/utils/elasticityCalculator";
 import { useToast } from "@/hooks/use-toast";
-import { getScenario1Results, getScenario2Results, getScenario3Results, saveScenario3Results } from "@/utils/scenarioStorage";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
+import { ProjectScenarioNav } from "@/components/ProjectScenarioNav";
+import { useScenarios } from "@/contexts/ScenarioContext";
 
 const Scenario3 = () => {
-  const navigate = useNavigate();
   const { toast } = useToast();
   const [results, setResults] = useState<Scenario3Output[]>([]);
   const [scenario1Data, setScenario1Data] = useState<any>(null);
   const [scenario2Data, setScenario2Data] = useState<any>(null);
+  const [activeTab, setActiveTab] = useState("inputs");
+  const { currentScenario, loadScenarioInput, loadScenarioOutput, saveScenarioOutput, saveScenarioInput } = useScenarios();
 
   useEffect(() => {
-    // Load previous scenarios
-    const s1 = getScenario1Results();
-    const s2 = getScenario2Results();
-    
-    if (s1) setScenario1Data(s1);
-    if (s2) setScenario2Data(s2);
-    
-    // Load saved Scenario 3 results
-    const s3 = getScenario3Results();
-    if (s3) {
-      setResults(s3.results);
-    }
-  }, []);
+    const loadData = async () => {
+      if (currentScenario) {
+        // Load input data
+        const inputData = await loadScenarioInput(currentScenario.id);
+        if (inputData) {
+          setScenario1Data(inputData.scenario1Data || null);
+          setScenario2Data(inputData.scenario2Data || null);
+        }
 
-  const handleDataSubmit = (inputs: Scenario3Input[]) => {
+        // Load output data
+        const outputData = await loadScenarioOutput(currentScenario.id);
+        if (outputData) {
+          setResults(outputData.results || []);
+        }
+      }
+    };
+
+    loadData();
+  }, [currentScenario]);
+
+  const handleDataSubmit = async (inputs: Scenario3Input[]) => {
     if (!scenario2Data || scenario2Data.length === 0) {
       toast({
         title: "No Scenario 2 data",
@@ -44,9 +52,7 @@ const Scenario3 = () => {
     }
 
     try {
-      // Enrich inputs with Scenario 2 data
       const enrichedInputs = inputs.flatMap(input => {
-        // Filter scenario2 data for matching product and date range
         const matchingS2Data = scenario2Data.filter((s2: any) => {
           const s2Date = new Date(s2.period);
           return s2.product === input.product_name &&
@@ -54,10 +60,8 @@ const Scenario3 = () => {
                  s2Date <= input.toPeriod;
         });
 
-        // Calculate actual price from base price and discount rate
         const actualPrice = input.base_price * (1 - input.discount_rate / 100);
 
-        // Create scenario3 inputs for each matching period
         return matchingS2Data.map((s2: any) => ({
           product_id: s2.product.substring(0, 10),
           product_name: s2.product,
@@ -86,12 +90,17 @@ const Scenario3 = () => {
       setResults(processedResults);
       
       // Save results
-      saveScenario3Results(processedResults);
+      if (currentScenario) {
+        await saveScenarioOutput(currentScenario.id, { results: processedResults });
+        await saveScenarioInput(currentScenario.id, { scenario1Data, scenario2Data });
+      }
       
       toast({
         title: "Scenario 3 calculated",
         description: `Processed ${processedResults.length} forecasts with elasticity adjustments`
       });
+
+      setActiveTab("results");
     } catch (error) {
       toast({
         title: "Calculation failed",
@@ -117,7 +126,6 @@ const Scenario3 = () => {
     });
   };
 
-  // Prepare comparison chart data
   const comparisonChartData = scenario2Data?.map((adj: any) => ({
     product: adj.product,
     baseline: adj.baselineForecast,
@@ -125,79 +133,101 @@ const Scenario3 = () => {
   })) || [];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-muted/30 to-background">
-      <div className="container mx-auto px-4 py-8">
-        {/* Header */}
-        <div className="flex items-center gap-4 mb-8">
-          <Button
-            variant="ghost"
-            onClick={() => navigate("/scenario2")}
-            className="gap-2"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Back to Scenario 2
-          </Button>
-          <div>
-            <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
-              Scenario 3 - Advanced Adjustments
-            </h1>
-            <p className="text-muted-foreground mt-1">
-              Apply price elasticity, promotions, and target-driven recommendations
-            </p>
-          </div>
-        </div>
+    <div className="flex h-screen overflow-hidden bg-background">
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <ProjectScenarioNav
+          currentProjectId={currentScenario?.project_id}
+          currentScenarioId={currentScenario?.id}
+          moduleType="forecasting"
+          moduleName="Scenario 3 - Advanced Adjustments"
+        />
 
-        <div className="grid lg:grid-cols-3 gap-6">
-          {/* Left Column - Input */}
-          <div className="lg:col-span-1 space-y-6">
-            {(scenario1Data || scenario2Data) && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Previous Scenarios</CardTitle>
-                  <CardDescription>
-                    Compare baseline and adjusted forecasts
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <ResponsiveContainer width="100%" height={200}>
-                    <BarChart data={comparisonChartData}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="product" tick={{ fontSize: 10 }} />
-                      <YAxis />
-                      <Tooltip />
-                      <Legend />
-                      <Bar dataKey="baseline" fill="hsl(var(--muted))" name="Scenario 1" />
-                      <Bar dataKey="scenario2" fill="hsl(var(--primary))" name="Scenario 2" />
-                    </BarChart>
-                  </ResponsiveContainer>
-                  {scenario2Data && (
-                    <Button onClick={handleImportFromScenario2} className="w-full" variant="outline">
-                      <Download className="h-4 w-4 mr-2" />
-                      Import from Scenario 2
-                    </Button>
-                  )}
-                </CardContent>
-              </Card>
-            )}
-            <Scenario3InputForm onDataSubmit={handleDataSubmit} scenario2Data={scenario2Data} />
-          </div>
+        <div className="flex-1 overflow-auto">
+          <div className="container mx-auto p-6 space-y-6">
+            <div>
+              <h1 className="text-3xl font-bold">Advanced Demand Adjustments</h1>
+              <p className="text-muted-foreground mt-1">
+                Apply price elasticity, promotions, and target-driven recommendations
+              </p>
+            </div>
 
-          {/* Right Column - Results */}
-          <div className="lg:col-span-2">
-            {results.length > 0 ? (
-              <Scenario3Results 
-                results={results} 
-                scenario1Data={scenario1Data}
-                scenario2Data={scenario2Data}
-              />
-            ) : (
-              <div className="h-full flex items-center justify-center border-2 border-dashed border-muted rounded-lg">
-                <div className="text-center text-muted-foreground p-12">
-                  <p className="text-lg font-medium">No results yet</p>
-                  <p className="text-sm mt-2">Enter data and click "Calculate Scenario 3" to see results</p>
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="inputs">Elasticity Inputs</TabsTrigger>
+                <TabsTrigger value="results">Results</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="inputs" className="space-y-6">
+                <div className="grid lg:grid-cols-3 gap-6">
+                  <div className="lg:col-span-1 space-y-6">
+                    {(scenario1Data || scenario2Data) && (
+                      <Card>
+                        <CardHeader>
+                          <CardTitle>Previous Scenarios</CardTitle>
+                          <CardDescription>
+                            Compare baseline and adjusted forecasts
+                          </CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                          <ResponsiveContainer width="100%" height={200}>
+                            <BarChart data={comparisonChartData}>
+                              <CartesianGrid strokeDasharray="3 3" />
+                              <XAxis dataKey="product" tick={{ fontSize: 10 }} />
+                              <YAxis />
+                              <Tooltip />
+                              <Legend />
+                              <Bar dataKey="baseline" fill="hsl(var(--muted))" name="Scenario 1" />
+                              <Bar dataKey="scenario2" fill="hsl(var(--primary))" name="Scenario 2" />
+                            </BarChart>
+                          </ResponsiveContainer>
+                          {scenario2Data && (
+                            <Button onClick={handleImportFromScenario2} className="w-full" variant="outline">
+                              <Download className="h-4 w-4 mr-2" />
+                              Import from Scenario 2
+                            </Button>
+                          )}
+                        </CardContent>
+                      </Card>
+                    )}
+                    <Scenario3InputForm onDataSubmit={handleDataSubmit} scenario2Data={scenario2Data} />
+                  </div>
+
+                  <div className="lg:col-span-2">
+                    {results.length > 0 ? (
+                      <Scenario3Results 
+                        results={results} 
+                        scenario1Data={scenario1Data}
+                        scenario2Data={scenario2Data}
+                      />
+                    ) : (
+                      <div className="h-full flex items-center justify-center border-2 border-dashed border-muted rounded-lg">
+                        <div className="text-center text-muted-foreground p-12">
+                          <p className="text-lg font-medium">No results yet</p>
+                          <p className="text-sm mt-2">Enter data and click "Calculate Scenario 3" to see results</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            )}
+              </TabsContent>
+
+              <TabsContent value="results" className="space-y-6">
+                {results.length > 0 ? (
+                  <Scenario3Results 
+                    results={results} 
+                    scenario1Data={scenario1Data}
+                    scenario2Data={scenario2Data}
+                  />
+                ) : (
+                  <div className="h-[600px] flex items-center justify-center border-2 border-dashed border-muted rounded-lg">
+                    <div className="text-center text-muted-foreground p-12">
+                      <p className="text-lg font-medium">No results available</p>
+                      <p className="text-sm mt-2">Complete the inputs in the previous tab</p>
+                    </div>
+                  </div>
+                )}
+              </TabsContent>
+            </Tabs>
           </div>
         </div>
       </div>
