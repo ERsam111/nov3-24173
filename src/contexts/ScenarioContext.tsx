@@ -25,6 +25,7 @@ export interface ScenarioOutput {
   id: string;
   scenario_id: string;
   output_data: any;
+  result_number: number;
   created_at: string;
 }
 
@@ -38,9 +39,11 @@ interface ScenarioContextType {
   deleteScenario: (id: string) => Promise<void>;
   setCurrentScenario: (scenario: Scenario | null) => void;
   saveScenarioInput: (scenarioId: string, inputData: any) => Promise<void>;
-  saveScenarioOutput: (scenarioId: string, outputData: any) => Promise<void>;
+  saveScenarioOutput: (scenarioId: string, outputData: any) => Promise<number>;
   loadScenarioInput: (scenarioId: string) => Promise<any>;
   loadScenarioOutput: (scenarioId: string) => Promise<any>;
+  loadAllScenarioOutputs: (scenarioId: string) => Promise<ScenarioOutput[]>;
+  loadScenarioOutputByVersion: (scenarioId: string, resultNumber: number) => Promise<any>;
 }
 
 const ScenarioContext = createContext<ScenarioContextType | undefined>(undefined);
@@ -118,12 +121,24 @@ export const ScenarioProvider = ({ children }: { children: React.ReactNode }) =>
   };
 
   const saveScenarioOutput = async (scenarioId: string, outputData: any) => {
+    // Get existing outputs to determine next result number
+    const { data: existing } = await (supabase as any)
+      .from('scenario_outputs')
+      .select('result_number')
+      .eq('scenario_id', scenarioId)
+      .order('result_number', { ascending: false })
+      .limit(1);
+    
+    const resultNumber = existing && existing.length > 0 ? existing[0].result_number + 1 : 1;
+    
     await (supabase as any)
       .from('scenario_outputs')
-      .insert([{ scenario_id: scenarioId, output_data: outputData }]);
+      .insert([{ scenario_id: scenarioId, output_data: outputData, result_number: resultNumber }]);
     
     // Automatically update scenario status to completed
     await updateScenario(scenarioId, { status: 'completed' });
+    
+    return resultNumber;
   };
 
   const loadScenarioInput = async (scenarioId: string) => {
@@ -144,10 +159,37 @@ export const ScenarioProvider = ({ children }: { children: React.ReactNode }) =>
   const loadScenarioOutput = async (scenarioId: string) => {
     const { data, error } = await (supabase as any)
       .from('scenario_outputs')
+      .select('output_data, result_number')
+      .eq('scenario_id', scenarioId)
+      .order('result_number', { ascending: false })
+      .limit(1)
+      .single();
+
+    if (!error && data) {
+      return data.output_data;
+    }
+    return null;
+  };
+
+  const loadAllScenarioOutputs = async (scenarioId: string) => {
+    const { data, error } = await (supabase as any)
+      .from('scenario_outputs')
+      .select('*')
+      .eq('scenario_id', scenarioId)
+      .order('result_number', { ascending: true });
+
+    if (!error && data) {
+      return data as ScenarioOutput[];
+    }
+    return [];
+  };
+
+  const loadScenarioOutputByVersion = async (scenarioId: string, resultNumber: number) => {
+    const { data, error } = await (supabase as any)
+      .from('scenario_outputs')
       .select('output_data')
       .eq('scenario_id', scenarioId)
-      .order('created_at', { ascending: false })
-      .limit(1)
+      .eq('result_number', resultNumber)
       .single();
 
     if (!error && data) {
@@ -170,6 +212,8 @@ export const ScenarioProvider = ({ children }: { children: React.ReactNode }) =>
       saveScenarioOutput,
       loadScenarioInput,
       loadScenarioOutput,
+      loadAllScenarioOutputs,
+      loadScenarioOutputByVersion,
     }}>
       {children}
     </ScenarioContext.Provider>
