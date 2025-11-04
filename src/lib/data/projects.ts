@@ -17,6 +17,26 @@ export interface Project {
 }
 
 /**
+ * Get module-specific prefix for project names
+ */
+function getModulePrefix(toolType: ToolType): string {
+  switch (toolType) {
+    case 'gfa':
+      return 'GFA';
+    case 'forecasting':
+      return 'DF'; // Demand Forecasting
+    case 'inventory':
+      return 'IO'; // Inventory Optimization
+    case 'network':
+      return 'Network';
+    case 'transportation':
+      return 'Transport';
+    default:
+      return 'Project';
+  }
+}
+
+/**
  * Ensure a project exists for the user in the given module
  * Returns existing project or creates one with auto-name
  * NOTE: Only creates ONE project per module type - always reuses existing
@@ -37,16 +57,18 @@ export async function ensureProject(userId: string, toolType: ToolType): Promise
       return existing as Project;
     }
 
-    // No project exists - create the first one with auto-name
+    // No project exists - create the first one with module-prefixed auto-name
+    const prefix = getModulePrefix(toolType);
     const name = await nextAutoName(
       async () => {
         const { data } = await supabase
           .from('projects')
           .select('name')
-          .eq('user_id', userId);
+          .eq('user_id', userId)
+          .eq('tool_type', toolType); // Only check names within this module
         return data?.map(p => p.name) || [];
       },
-      'Project'
+      prefix as any // Use module prefix instead of 'Project'
     );
 
     const { data: newProject, error: createError } = await supabase
