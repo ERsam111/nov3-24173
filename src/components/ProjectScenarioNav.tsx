@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { ChevronDown, FolderOpen, GitBranch, Plus } from "lucide-react";
+import { ChevronDown, FolderOpen, GitBranch, Plus, Pencil } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,7 +11,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useProjects, Project } from "@/contexts/ProjectContext";
 import { useScenarios, Scenario } from "@/contexts/ScenarioContext";
-import { CreateProjectDialog } from "./CreateProjectDialog";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -35,11 +34,14 @@ export const ProjectScenarioNav = ({
   onProjectChange,
   onScenarioChange,
 }: ProjectScenarioNavProps) => {
-  const { projects, createProject } = useProjects();
-  const { scenarios, loadScenariosByProject, createScenario, setCurrentScenario, currentScenario } = useScenarios();
+  const { projects, createProject, updateProject } = useProjects();
+  const { scenarios, loadScenariosByProject, createScenario, updateScenario, setCurrentScenario, currentScenario } = useScenarios();
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
-  const [createProjectOpen, setCreateProjectOpen] = useState(false);
+  const [renameProjectOpen, setRenameProjectOpen] = useState(false);
+  const [renameScenarioOpen, setRenameScenarioOpen] = useState(false);
   const [createScenarioOpen, setCreateScenarioOpen] = useState(false);
+  const [projectName, setProjectName] = useState("");
+  const [projectDescription, setProjectDescription] = useState("");
   const [scenarioName, setScenarioName] = useState("");
   const [scenarioDescription, setScenarioDescription] = useState("");
 
@@ -152,6 +154,29 @@ export const ProjectScenarioNav = ({
     onScenarioChange?.(scenario);
   };
 
+  const handleCreateProject = async () => {
+    const prefix = getModulePrefix(moduleType);
+    const nextProjectNum = moduleProjects.length + 1;
+    
+    const newProject = await createProject({
+      name: `${prefix} Project ${nextProjectNum}`,
+      description: "New project",
+      tool_type: moduleType,
+      input_data: null,
+      results_data: null,
+      size_mb: 0
+    });
+
+    if (newProject) {
+      setSelectedProject(newProject);
+      await loadScenariosByProject(newProject.id);
+      onProjectChange?.(newProject);
+      toast.success("Project created successfully");
+    } else {
+      toast.error("Failed to create project");
+    }
+  };
+
   const handleCreateScenario = async () => {
     if (!selectedProject) {
       toast.error("Please select a project first");
@@ -179,6 +204,57 @@ export const ProjectScenarioNav = ({
       handleScenarioSelect(newScenario);
     } else {
       toast.error("Failed to create scenario");
+    }
+  };
+
+  const handleRenameProject = async () => {
+    if (!selectedProject) return;
+    
+    if (!projectName.trim()) {
+      toast.error("Please enter a project name");
+      return;
+    }
+
+    await updateProject(selectedProject.id, { 
+      name: projectName, 
+      description: projectDescription 
+    });
+    
+    setSelectedProject({ ...selectedProject, name: projectName, description: projectDescription });
+    setRenameProjectOpen(false);
+    toast.success("Project renamed successfully");
+  };
+
+  const handleRenameScenario = async () => {
+    if (!currentScenario) return;
+    
+    if (!scenarioName.trim()) {
+      toast.error("Please enter a scenario name");
+      return;
+    }
+
+    await updateScenario(currentScenario.id, { 
+      name: scenarioName, 
+      description: scenarioDescription 
+    });
+    
+    setRenameScenarioOpen(false);
+    toast.success("Scenario renamed successfully");
+  };
+
+  const openRenameProject = () => {
+    if (selectedProject) {
+      setProjectName(selectedProject.name);
+      setProjectDescription(selectedProject.description || "");
+      setRenameProjectOpen(true);
+    }
+  };
+
+  const openRenameScenario = () => {
+    if (currentScenario) {
+      setScenarioName(currentScenario.name);
+      setScenarioDescription(currentScenario.description || "");
+      setRenameScenarioOpen(true);
     }
   };
 
@@ -233,7 +309,13 @@ export const ProjectScenarioNav = ({
               </div>
             )}
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => setCreateProjectOpen(true)} className="gap-2">
+            {selectedProject && (
+              <DropdownMenuItem onClick={openRenameProject} className="gap-2">
+                <Pencil className="h-4 w-4" />
+                Rename Project
+              </DropdownMenuItem>
+            )}
+            <DropdownMenuItem onClick={handleCreateProject} className="gap-2">
               <Plus className="h-4 w-4" />
               Create New Project
             </DropdownMenuItem>
@@ -288,6 +370,12 @@ export const ProjectScenarioNav = ({
                   </div>
                 )}
                 <DropdownMenuSeparator />
+                {currentScenario && (
+                  <DropdownMenuItem onClick={openRenameScenario} className="gap-2">
+                    <Pencil className="h-4 w-4" />
+                    Rename Scenario
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuItem onClick={() => setCreateScenarioOpen(true)} className="gap-2">
                   <Plus className="h-4 w-4" />
                   Create New Scenario
@@ -298,13 +386,81 @@ export const ProjectScenarioNav = ({
         )}
       </div>
 
-      <CreateProjectDialog
-        open={createProjectOpen}
-        onOpenChange={setCreateProjectOpen}
-        toolType={moduleType}
-        toolName={moduleName}
-        redirectTo={`/${moduleType}`}
-      />
+      <Dialog open={renameProjectOpen} onOpenChange={setRenameProjectOpen}>
+        <DialogContent className="bg-background">
+          <DialogHeader>
+            <DialogTitle>Rename Project</DialogTitle>
+            <DialogDescription>
+              Update the name and description for this project
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="project-name">Project Name</Label>
+              <Input
+                id="project-name"
+                value={projectName}
+                onChange={(e) => setProjectName(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="project-description">Description (Optional)</Label>
+              <Textarea
+                id="project-description"
+                value={projectDescription}
+                onChange={(e) => setProjectDescription(e.target.value)}
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRenameProjectOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleRenameProject}>
+              Save Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={renameScenarioOpen} onOpenChange={setRenameScenarioOpen}>
+        <DialogContent className="bg-background">
+          <DialogHeader>
+            <DialogTitle>Rename Scenario</DialogTitle>
+            <DialogDescription>
+              Update the name and description for this scenario
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="rename-scenario-name">Scenario Name</Label>
+              <Input
+                id="rename-scenario-name"
+                value={scenarioName}
+                onChange={(e) => setScenarioName(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="rename-scenario-description">Description (Optional)</Label>
+              <Textarea
+                id="rename-scenario-description"
+                value={scenarioDescription}
+                onChange={(e) => setScenarioDescription(e.target.value)}
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRenameScenarioOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleRenameScenario}>
+              Save Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={createScenarioOpen} onOpenChange={setCreateScenarioOpen}>
         <DialogContent className="bg-background">
