@@ -27,14 +27,12 @@ const Scenario2 = () => {
   useEffect(() => {
     const loadData = async () => {
       if (currentScenario) {
-        // Load input data
         const inputData = await loadScenarioInput(currentScenario.id);
         if (inputData) {
           setScenario1Data(inputData.scenario1Data || null);
           setSelectedModelId(inputData.selectedModelId || "");
         }
 
-        // Load output data
         const outputData = await loadScenarioOutput(currentScenario.id);
         if (outputData) {
           setEnrichedAdjustments(outputData.enrichedAdjustments || []);
@@ -95,7 +93,6 @@ const Scenario2 = () => {
 
     setEnrichedAdjustments(enriched);
     
-    // Save results
     if (currentScenario) {
       await saveScenarioOutput(currentScenario.id, { enrichedAdjustments: enriched });
       await saveScenarioInput(currentScenario.id, { scenario1Data, selectedModelId });
@@ -185,21 +182,22 @@ const Scenario2 = () => {
               </TabsList>
 
               <TabsContent value="adjustments" className="space-y-6">
-                <div className="grid lg:grid-cols-3 gap-6">
-                  <div className="lg:col-span-1 space-y-6">
-                    {scenario1Data && (
-                      <Card>
-                        <CardHeader>
+                {/* Baseline Chart - Full Width at Top */}
+                {scenario1Data && (
+                  <Card>
+                    <CardHeader>
+                      <div className="flex items-center justify-between">
+                        <div>
                           <CardTitle>Scenario 1 Baseline</CardTitle>
                           <CardDescription>
                             {scenario1Data.product} - {scenario1Data.granularity} forecast
                           </CardDescription>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
+                        </div>
+                        <div className="flex items-center gap-4">
                           <div className="space-y-2">
                             <Label className="text-xs">Select Forecast Model</Label>
                             <Select value={selectedModelId} onValueChange={setSelectedModelId}>
-                              <SelectTrigger>
+                              <SelectTrigger className="w-[250px]">
                                 <SelectValue placeholder="Choose model" />
                               </SelectTrigger>
                               <SelectContent>
@@ -211,38 +209,34 @@ const Scenario2 = () => {
                               </SelectContent>
                             </Select>
                           </div>
-                          <ResponsiveContainer width="100%" height={200}>
-                            <LineChart data={scenario1ChartData}>
-                              <CartesianGrid strokeDasharray="3 3" />
-                              <XAxis dataKey="date" tick={{ fontSize: 10 }} />
-                              <YAxis />
-                              <Tooltip />
-                              <Line type="monotone" dataKey="baseline" stroke="hsl(var(--primary))" strokeWidth={2} />
-                            </LineChart>
-                          </ResponsiveContainer>
-                          <Button onClick={handleImportFromScenario1} className="w-full" variant="outline">
-                            <Download className="h-4 w-4 mr-2" />
-                            Import Baseline Data
+                          <Button onClick={handleImportFromScenario1} variant="outline" className="gap-2">
+                            <Download className="h-4 w-4" />
+                            Import Baseline
                           </Button>
-                        </CardContent>
-                      </Card>
-                    )}
-                    <Scenario2Input onAdjustmentsSubmit={handleAdjustmentsSubmit} scenario1Data={scenario1Data} />
-                  </div>
-
-                  <div className="lg:col-span-2">
-                    {enrichedAdjustments.length > 0 ? (
-                      <Scenario2Results adjustments={enrichedAdjustments} scenario1Data={scenario1Data} />
-                    ) : (
-                      <div className="h-full flex items-center justify-center border-2 border-dashed border-muted rounded-lg">
-                        <div className="text-center text-muted-foreground p-12">
-                          <p className="text-lg font-medium">No adjustments yet</p>
-                          <p className="text-sm mt-2">Import baseline from Scenario 1, then apply adjustments to see results</p>
                         </div>
                       </div>
-                    )}
-                  </div>
-                </div>
+                    </CardHeader>
+                    <CardContent>
+                      <ResponsiveContainer width="100%" height={300}>
+                        <LineChart data={scenario1ChartData}>
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis dataKey="date" tick={{ fontSize: 12 }} />
+                          <YAxis />
+                          <Tooltip />
+                          <Line type="monotone" dataKey="baseline" stroke="hsl(var(--primary))" strokeWidth={2} />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Input Form - Full Width at Bottom */}
+                <Scenario2Input onAdjustmentsSubmit={handleAdjustmentsSubmit} scenario1Data={scenario1Data} />
+
+                {/* Preview Results - Full Width */}
+                {enrichedAdjustments.length > 0 && (
+                  <Scenario2Results adjustments={enrichedAdjustments} scenario1Data={scenario1Data} />
+                )}
               </TabsContent>
 
               <TabsContent value="results" className="space-y-6">

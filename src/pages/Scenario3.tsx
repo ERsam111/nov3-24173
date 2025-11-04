@@ -23,14 +23,12 @@ const Scenario3 = () => {
   useEffect(() => {
     const loadData = async () => {
       if (currentScenario) {
-        // Load input data
         const inputData = await loadScenarioInput(currentScenario.id);
         if (inputData) {
           setScenario1Data(inputData.scenario1Data || null);
           setScenario2Data(inputData.scenario2Data || null);
         }
 
-        // Load output data
         const outputData = await loadScenarioOutput(currentScenario.id);
         if (outputData) {
           setResults(outputData.results || []);
@@ -89,7 +87,6 @@ const Scenario3 = () => {
       const processedResults = processScenario3Adjustments(enrichedInputs);
       setResults(processedResults);
       
-      // Save results
       if (currentScenario) {
         await saveScenarioOutput(currentScenario.id, { results: processedResults });
         await saveScenarioInput(currentScenario.id, { scenario1Data, scenario2Data });
@@ -126,7 +123,7 @@ const Scenario3 = () => {
     });
   };
 
-  const comparisonChartData = scenario2Data?.map((adj: any) => ({
+  const comparisonChartData = scenario2Data?.slice(0, 10).map((adj: any) => ({
     product: adj.product,
     baseline: adj.baselineForecast,
     scenario2: adj.adjustedForecast
@@ -158,57 +155,52 @@ const Scenario3 = () => {
               </TabsList>
 
               <TabsContent value="inputs" className="space-y-6">
-                <div className="grid lg:grid-cols-3 gap-6">
-                  <div className="lg:col-span-1 space-y-6">
-                    {(scenario1Data || scenario2Data) && (
-                      <Card>
-                        <CardHeader>
+                {/* Comparison Chart - Full Width at Top */}
+                {(scenario1Data || scenario2Data) && (
+                  <Card>
+                    <CardHeader>
+                      <div className="flex items-center justify-between">
+                        <div>
                           <CardTitle>Previous Scenarios</CardTitle>
                           <CardDescription>
                             Compare baseline and adjusted forecasts
                           </CardDescription>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                          <ResponsiveContainer width="100%" height={200}>
-                            <BarChart data={comparisonChartData}>
-                              <CartesianGrid strokeDasharray="3 3" />
-                              <XAxis dataKey="product" tick={{ fontSize: 10 }} />
-                              <YAxis />
-                              <Tooltip />
-                              <Legend />
-                              <Bar dataKey="baseline" fill="hsl(var(--muted))" name="Scenario 1" />
-                              <Bar dataKey="scenario2" fill="hsl(var(--primary))" name="Scenario 2" />
-                            </BarChart>
-                          </ResponsiveContainer>
-                          {scenario2Data && (
-                            <Button onClick={handleImportFromScenario2} className="w-full" variant="outline">
-                              <Download className="h-4 w-4 mr-2" />
-                              Import from Scenario 2
-                            </Button>
-                          )}
-                        </CardContent>
-                      </Card>
-                    )}
-                    <Scenario3InputForm onDataSubmit={handleDataSubmit} scenario2Data={scenario2Data} />
-                  </div>
-
-                  <div className="lg:col-span-2">
-                    {results.length > 0 ? (
-                      <Scenario3Results 
-                        results={results} 
-                        scenario1Data={scenario1Data}
-                        scenario2Data={scenario2Data}
-                      />
-                    ) : (
-                      <div className="h-full flex items-center justify-center border-2 border-dashed border-muted rounded-lg">
-                        <div className="text-center text-muted-foreground p-12">
-                          <p className="text-lg font-medium">No results yet</p>
-                          <p className="text-sm mt-2">Enter data and click "Calculate Scenario 3" to see results</p>
                         </div>
+                        {scenario2Data && (
+                          <Button onClick={handleImportFromScenario2} variant="outline" className="gap-2">
+                            <Download className="h-4 w-4" />
+                            Import from Scenario 2
+                          </Button>
+                        )}
                       </div>
-                    )}
-                  </div>
-                </div>
+                    </CardHeader>
+                    <CardContent>
+                      <ResponsiveContainer width="100%" height={300}>
+                        <BarChart data={comparisonChartData}>
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis dataKey="product" tick={{ fontSize: 10 }} />
+                          <YAxis />
+                          <Tooltip />
+                          <Legend />
+                          <Bar dataKey="baseline" fill="hsl(var(--muted))" name="Scenario 1" />
+                          <Bar dataKey="scenario2" fill="hsl(var(--primary))" name="Scenario 2" />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Input Form - Full Width at Bottom */}
+                <Scenario3InputForm onDataSubmit={handleDataSubmit} scenario2Data={scenario2Data} />
+
+                {/* Preview Results - Full Width */}
+                {results.length > 0 && (
+                  <Scenario3Results 
+                    results={results} 
+                    scenario1Data={scenario1Data}
+                    scenario2Data={scenario2Data}
+                  />
+                )}
               </TabsContent>
 
               <TabsContent value="results" className="space-y-6">

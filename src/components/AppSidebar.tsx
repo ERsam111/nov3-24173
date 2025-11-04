@@ -31,7 +31,6 @@ import { useProjects } from '@/contexts/ProjectContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { format } from 'date-fns';
-import { CreateProjectDialog } from './CreateProjectDialog';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import {
@@ -55,7 +54,7 @@ import { toast } from 'sonner';
 const navigationItems = [
   { title: 'Dashboard', url: '/dashboard', icon: Home, type: null },
   { title: 'GFA', url: '/gfa', icon: MapPin, type: 'gfa' as const },
-  { title: 'Demand from the Sale', url: '/demand-forecasting', icon: TrendingUp, type: 'forecasting' as const },
+  { title: 'Demand Planning', url: '/demand-forecasting', icon: TrendingUp, type: 'forecasting' as const },
   { title: 'Network Analysis', url: '/network', icon: Network, type: 'network' as const },
   { title: 'Inventory Optimization', url: '/inventory-optimization-v2', icon: Gauge, type: 'inventory' as const },
 ];
@@ -67,8 +66,6 @@ export function AppSidebar() {
   const { projects, deleteProject } = useProjects();
   const { user } = useAuth();
   const [projectsOpen, setProjectsOpen] = useState(true);
-  const [createDialogOpen, setCreateDialogOpen] = useState(false);
-  const [selectedTool, setSelectedTool] = useState<typeof navigationItems[0] | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [projectToDelete, setProjectToDelete] = useState<string | null>(null);
   const [scenarioCounts, setScenarioCounts] = useState<Record<string, number>>({});
@@ -98,12 +95,7 @@ export function AppSidebar() {
   const collapsed = state === 'collapsed';
 
   const handleNavClick = (item: typeof navigationItems[0]) => {
-    if (item.type) {
-      setSelectedTool(item);
-      setCreateDialogOpen(true);
-    } else {
-      navigate(item.url);
-    }
+    navigate(item.url);
   };
 
   const handleProjectClick = (projectId: string, toolType: string) => {
@@ -258,16 +250,6 @@ export function AppSidebar() {
           )}
         </SidebarContent>
       </Sidebar>
-
-      {selectedTool && selectedTool.type && (
-        <CreateProjectDialog
-          open={createDialogOpen}
-          onOpenChange={setCreateDialogOpen}
-          toolType={selectedTool.type}
-          toolName={selectedTool.title}
-          redirectTo={selectedTool.url}
-        />
-      )}
 
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>

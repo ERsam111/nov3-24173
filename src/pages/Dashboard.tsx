@@ -4,7 +4,6 @@ import { useNavigate } from 'react-router-dom';
 import { MapPin, TrendingUp, Network, Gauge, FolderOpen, Plus, Truck, Activity, Target, Zap } from 'lucide-react';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useState, useEffect } from 'react';
-import { CreateProjectDialog } from '@/components/CreateProjectDialog';
 import { supabase } from '@/integrations/supabase/client';
 
 const tools = [
@@ -17,7 +16,7 @@ const tools = [
   },
   {
     icon: TrendingUp,
-    title: 'Demand from the Sale',
+    title: 'Demand Planning',
     description: 'Demand and Promotion',
     route: '/demand-forecasting',
     type: 'forecasting' as const,
@@ -50,8 +49,6 @@ const tools = [
 const Dashboard = () => {
   const navigate = useNavigate();
   const { projects } = useProjects();
-  const [createDialogOpen, setCreateDialogOpen] = useState(false);
-  const [selectedTool, setSelectedTool] = useState<typeof tools[0] | null>(null);
   const [totalScenarios, setTotalScenarios] = useState(0);
   const [completedScenarios, setCompletedScenarios] = useState(0);
 
@@ -75,8 +72,7 @@ const Dashboard = () => {
 
   const handleToolClick = (tool: typeof tools[0]) => {
     if (tool.comingSoon) return;
-    setSelectedTool(tool);
-    setCreateDialogOpen(true);
+    navigate(tool.route);
   };
 
   const getProjectsByType = (type: string) => 
@@ -180,16 +176,6 @@ const Dashboard = () => {
           })}
         </div>
       </div>
-
-      {selectedTool && (
-        <CreateProjectDialog
-          open={createDialogOpen}
-          onOpenChange={setCreateDialogOpen}
-          toolType={selectedTool.type}
-          toolName={selectedTool.title}
-          redirectTo={selectedTool.route}
-        />
-      )}
     </div>
   );
 };
