@@ -98,160 +98,88 @@ export function GFACompactInputPanel({
   };
 
   return (
-    <div className="flex h-full">
-      {/* Compact Top Toolbar */}
-      <div className="absolute top-0 left-0 right-0 z-10 flex items-center gap-1 p-2 bg-background/95 backdrop-blur border-b">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => setShowUploadDialog(true)}
-          className="h-8 w-8 p-0"
-          title="Import Data"
-        >
-          <Upload className="h-4 w-4" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={exportData}
-          className="h-8 w-8 p-0"
-          title="Export Data"
-        >
-          <Download className="h-4 w-4" />
-        </Button>
-        <div className="ml-auto text-xs text-muted-foreground">
-          {customers.length} customers · {products.length} products
-        </div>
-      </div>
-
-      {/* Left Sidebar */}
-      <div className="w-56 border-r bg-muted/30 pt-12 flex flex-col">
-        <div className="text-xs font-semibold text-muted-foreground px-3 py-2">INPUT DATA</div>
-        <ScrollArea className="flex-1">
-          <div className="space-y-1 p-2">
-            <button
-              onClick={() => setActiveSection(activeSection === "customers" ? null : "customers")}
-              className={cn(
-                "w-full flex items-center justify-between px-3 py-2 rounded-md text-sm transition-colors",
-                activeSection === "customers"
-                  ? "bg-primary text-primary-foreground"
-                  : "hover:bg-muted"
-              )}
-            >
-              <div className="flex items-center gap-2">
-                <List className="h-4 w-4" />
-                <span>Customer Data</span>
-              </div>
-              <span className="text-xs opacity-70">{customers.length}</span>
-            </button>
-
-            <button
-              onClick={() => setActiveSection(activeSection === "products" ? null : "products")}
-              className={cn(
-                "w-full flex items-center justify-between px-3 py-2 rounded-md text-sm transition-colors",
-                activeSection === "products"
-                  ? "bg-primary text-primary-foreground"
-                  : "hover:bg-muted"
-              )}
-            >
-              <div className="flex items-center gap-2">
-                <Package className="h-4 w-4" />
-                <span>Products</span>
-              </div>
-              <span className="text-xs opacity-70">{products.length}</span>
-            </button>
-
-            <button
-              onClick={() => setActiveSection(activeSection === "costs" ? null : "costs")}
-              className={cn(
-                "w-full flex items-center justify-between px-3 py-2 rounded-md text-sm transition-colors",
-                activeSection === "costs"
-                  ? "bg-primary text-primary-foreground"
-                  : "hover:bg-muted"
-              )}
-            >
-              <div className="flex items-center gap-2">
-                <DollarSign className="h-4 w-4" />
-                <span>Cost Parameters</span>
-              </div>
-              <ChevronRight className="h-4 w-4" />
-            </button>
+    <div className="flex h-full gap-2 p-2">
+      {/* Left Panel - Tables */}
+      <div className="flex-1 flex flex-col gap-2 overflow-auto">
+        {/* Compact Top Toolbar */}
+        <div className="flex items-center gap-1 px-2 py-1 bg-muted/50 rounded-md border">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setShowUploadDialog(true)}
+            className="h-7 px-2"
+          >
+            <Upload className="h-3.5 w-3.5 mr-1" />
+            Import
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={exportData}
+            className="h-7 px-2"
+          >
+            <Download className="h-3.5 w-3.5 mr-1" />
+            Export
+          </Button>
+          <div className="ml-auto text-xs text-muted-foreground">
+            {customers.length} customers · {products.length} products
           </div>
-        </ScrollArea>
+        </div>
+
+        {/* Customer Data Table */}
+        <Card className="p-3">
+          <div className="flex items-center gap-2 mb-2">
+            <List className="h-4 w-4" />
+            <h3 className="font-semibold text-sm">Customer Data</h3>
+            <span className="text-xs text-muted-foreground ml-auto">{customers.length}</span>
+          </div>
+          <CustomerDataForm
+            customers={customers}
+            onAddCustomer={handleAddCustomer}
+            onRemoveCustomer={handleRemoveCustomer}
+          />
+        </Card>
+
+        {/* Product Management Table */}
+        {products.length > 0 && (
+          <Card className="p-3">
+            <div className="flex items-center gap-2 mb-2">
+              <Package className="h-4 w-4" />
+              <h3 className="font-semibold text-sm">Products</h3>
+              <span className="text-xs text-muted-foreground ml-auto">{products.length}</span>
+            </div>
+            <ProductManager
+              products={products}
+              onProductUpdate={handleProductUpdate}
+              targetUnit={settings.capacityUnit}
+            />
+          </Card>
+        )}
+
+        {/* Cost Parameters Table */}
+        <Card className="p-3">
+          <div className="flex items-center gap-2 mb-2">
+            <DollarSign className="h-4 w-4" />
+            <h3 className="font-semibold text-sm">Cost Parameters</h3>
+          </div>
+          <CostParameters
+            transportationCostPerMilePerUnit={settings.transportationCostPerMilePerUnit}
+            facilityCost={settings.facilityCost}
+            distanceUnit={settings.distanceUnit}
+            costUnit={settings.costUnit}
+            onTransportCostChange={(value) =>
+              onSettingsChange({ ...settings, transportationCostPerMilePerUnit: value })
+            }
+            onFacilityCostChange={(value) => onSettingsChange({ ...settings, facilityCost: value })}
+            onDistanceUnitChange={(value) => onSettingsChange({ ...settings, distanceUnit: value })}
+            onCostUnitChange={(value) => onSettingsChange({ ...settings, costUnit: value })}
+          />
+        </Card>
       </div>
 
-      {/* Main Content Area */}
-      <div className="flex-1 relative pt-12">
-        {/* Map View */}
-        <div className={cn(
-          "absolute inset-0 transition-all duration-300",
-          activeSection ? "right-96" : "right-0"
-        )}>
-          {mapComponent}
-        </div>
-
-        {/* Sliding Detail Panel */}
-        <div
-          className={cn(
-            "absolute top-0 bottom-0 right-0 w-96 bg-background border-l shadow-lg transition-transform duration-300",
-            activeSection ? "translate-x-0" : "translate-x-full"
-          )}
-        >
-          {activeSection && (
-            <div className="h-full flex flex-col">
-              <div className="flex items-center justify-between p-3 border-b bg-muted/50">
-                <h3 className="font-semibold text-sm">
-                  {activeSection === "customers" && "Customer Data"}
-                  {activeSection === "products" && "Product Management"}
-                  {activeSection === "costs" && "Cost Parameters"}
-                </h3>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setActiveSection(null)}
-                  className="h-7 w-7 p-0"
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-
-              <ScrollArea className="flex-1">
-                <div className="p-4 space-y-4">
-                  {activeSection === "customers" && (
-                    <CustomerDataForm
-                      customers={customers}
-                      onAddCustomer={handleAddCustomer}
-                      onRemoveCustomer={handleRemoveCustomer}
-                    />
-                  )}
-
-                  {activeSection === "products" && products.length > 0 && (
-                    <ProductManager
-                      products={products}
-                      onProductUpdate={handleProductUpdate}
-                      targetUnit={settings.capacityUnit}
-                    />
-                  )}
-
-                  {activeSection === "costs" && (
-                    <CostParameters
-                      transportationCostPerMilePerUnit={settings.transportationCostPerMilePerUnit}
-                      facilityCost={settings.facilityCost}
-                      distanceUnit={settings.distanceUnit}
-                      costUnit={settings.costUnit}
-                      onTransportCostChange={(value) =>
-                        onSettingsChange({ ...settings, transportationCostPerMilePerUnit: value })
-                      }
-                      onFacilityCostChange={(value) => onSettingsChange({ ...settings, facilityCost: value })}
-                      onDistanceUnitChange={(value) => onSettingsChange({ ...settings, distanceUnit: value })}
-                      onCostUnitChange={(value) => onSettingsChange({ ...settings, costUnit: value })}
-                    />
-                  )}
-                </div>
-              </ScrollArea>
-            </div>
-          )}
-        </div>
+      {/* Right Corner - Map */}
+      <div className="w-96 h-full rounded-lg overflow-hidden border shadow-lg">
+        {mapComponent}
       </div>
 
       {/* Upload Dialog */}
